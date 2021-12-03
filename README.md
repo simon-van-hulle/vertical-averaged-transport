@@ -13,5 +13,5 @@ Add usage
 
 ## Authors
 * Elias Bögel (5080894)
-* Simon Van Hulel (4998006)
+* Simon Van Hulle (4998006)
 
