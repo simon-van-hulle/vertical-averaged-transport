@@ -16,7 +16,8 @@ import log
 import os
 
 logger = log.Logger()
-PROJECT_DIR = os.pardir
+CURRENT_DIR = os.path.dirname(__file__)
+PROJECT_DIR = os.path.dirname(CURRENT_DIR)
 OUTPUT_DIR = os.path.join(PROJECT_DIR, "results")
 
 
@@ -147,28 +148,30 @@ class ParticleSimulation():
         plt.ylim([self.domain.ymin, self.domain.ymax])
         [plt.scatter(part.x, part.y, color='gray') for part in self.particles]
 
+        if file_name:
+            if file_name == True:
+                file_name = f"particles-P{self._num_particles}-S{self._num_steps}-T{self._time:.0f}"
+
+            file_name = os.path.join(OUTPUT_DIR, file_name)
+            plt.savefig(file_name)
+            logger.info(f"Saved end state as {file_name}")
+
         if show:
             plt.show()
 
-        if not file_name:
-            return
-
-        if file_name == True:
-            file_name = f"particles-N{self._num_particles}-T{self._time:.0f}"
-
-        file_name = os.path.join(OUTPUT_DIR, file_name)
-        plt.savefig(file_name)
-
     def run(self, show_plot=False, plot_name=False, animation=False):
+        logger.info("Starting particle model run")
         self.particles = [Particle(self.domain)
                           for i in range(self._num_particles)]
 
         self.plot_current()
 
         for i in range(self._num_steps):
-            logger.debug(f"Step {i} of {self._num_steps}")
+            logger.debug(f"Status: Step {i+1} of {self._num_steps}", end='\r')
             self._time += self._dt
             [part.euler_step(self._dt) for part in self.particles]
+        
+        logger.info("Finished particle model run")
 
         self.plot_current(show=show_plot, file_name=plot_name)
 
@@ -205,4 +208,4 @@ def particleAnimation(particles):
 
 if __name__ == "__main__":
     simul = ParticleSimulation(n_particles=1000, n_steps=1000, end_time=100)
-    simul.run(show_plot=True, plot_name=False)
+    simul.run(show_plot=False, plot_name=True)
