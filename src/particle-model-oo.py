@@ -176,10 +176,12 @@ class ParticleSimulation():
         self.plot_current(show=show_plot, file_name=plot_name)
 
         if animation:
-            particleAnimation(self.particles)
+            file_name = f"animation-P{self._num_particles}-S{self._num_steps}-T{self._time:.0f}.mp4"
+            file_name = os.path.join(OUTPUT_DIR, file_name)
+            particleAnimation(self.particles, file_name)
 
 
-def particleAnimation(particles):
+def particleAnimation(particles, file_name=False):
     logger.info("Starting Animation")
 
     xData = np.ones(len(particles)) * 0.5
@@ -202,10 +204,14 @@ def particleAnimation(particles):
     ax.set_xlim([-1, 1])
     ax.set_ylim([-1, 1])
 
-    animation.save("particle_simul.mp4")
+
+    if file_name:
+        animation.save(file_name)
+        logger.info(f"Saved animation as {file_name}")
+
     return animation
 
 
 if __name__ == "__main__":
     simul = ParticleSimulation(n_particles=1000, n_steps=1000, end_time=100)
-    simul.run(show_plot=False, plot_name=True)
+    simul.run(show_plot=False, plot_name=True, animation=False)
