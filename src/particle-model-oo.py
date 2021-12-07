@@ -13,8 +13,11 @@ import matplotlib.pyplot as plt
 import matplotlib.animation as anim
 import numpy as np
 import log
+import os
 
 logger = log.Logger()
+PROJECT_DIR = os.pardir
+OUTPUT_DIR = os.path.join(PROJECT_DIR, "results")
 
 
 class Domain:
@@ -103,7 +106,6 @@ class Particle:
 
         if not self.in_domain():
             self.correct_coords()
-            logger.debug(self.x, self.y)
 
 
 class ParticleSimulation():
@@ -113,6 +115,7 @@ class ParticleSimulation():
         self._num_steps = n_steps
         self._end_time = end_time
         self._dt = self.calc_dt()
+        self._time = 0
 
         # Public variables
         self.domain = Domain()
@@ -138,24 +141,39 @@ class ParticleSimulation():
     def euler_step(self):
         [part.euler_step(self._dt) for part in self.particles]
 
-    def plot_current(self):
+    def plot_current(self, show=False, file_name=False):
         plt.figure("Particle Distribution")
         plt.xlim([self.domain.xmin, self.domain.xmax])
         plt.ylim([self.domain.ymin, self.domain.ymax])
         [plt.scatter(part.x, part.y, color='gray') for part in self.particles]
 
-    def run(self):
+        if show:
+            plt.show()
+
+        if not file_name:
+            return
+
+        if file_name == True:
+            file_name = f"particles-N{self._num_particles}-T{self._time:.0f}"
+
+        file_name = os.path.join(OUTPUT_DIR, file_name)
+        plt.savefig(file_name)
+
+    def run(self, show_plot=False, plot_name=False, animation=False):
         self.particles = [Particle(self.domain)
                           for i in range(self._num_particles)]
 
         self.plot_current()
 
         for i in range(self._num_steps):
+            logger.debug(f"Step {i} of {self._num_steps}")
+            self._time += self._dt
             [part.euler_step(self._dt) for part in self.particles]
 
-        self.plot_current()
+        self.plot_current(show=show_plot, file_name=plot_name)
 
-        # particleAnimation(particles)
+        if animation:
+            particleAnimation(self.particles)
 
 
 def particleAnimation(particles):
@@ -171,8 +189,6 @@ def particleAnimation(particles):
         xData = [particle.xTrack[frame] for particle in particles]
         yData = [particle.yTrack[frame] for particle in particles]
 
-        # ax.clear()
-        # ax.scatter(xData, yData)
         ln.set_offsets(np.vstack((xData, yData)).T)
         return ln
 
@@ -188,8 +204,5 @@ def particleAnimation(particles):
 
 
 if __name__ == "__main__":
-
-    simul = ParticleSimulation(n_particles=1000, n_steps=10000, end_time=100)
-    simul.run()
-
-    plt.show()
+    simul = ParticleSimulation(n_particles=1000, n_steps=1000, end_time=100)
+    simul.run(show_plot=True, plot_name=False)
