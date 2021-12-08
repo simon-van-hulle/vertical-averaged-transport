@@ -2,9 +2,6 @@
 
 """
 A first, intuitive implementation.
-I realise this object-oriented approach is completely unnecessary and rather
-inefficient, so let's make a better version using numpy arrays.
-
 The code spits out results, but haven't checked anything (not reliable...)
 """
 
@@ -29,6 +26,7 @@ class Domain:
 
     We might remove this later.
     """
+
     def __init__(self, xmin=-1, xmax=1, ymin=-1, ymax=1):
         self.xmin = xmin
         self.xmax = xmax
@@ -110,8 +108,8 @@ class Particles:
         # self.pos_x = x * np.random.uniform(size=self.size)
         self.pos_y = y * np.ones(self.size)
         # self.pos_y = y * np.random.uniform(size=self.size)
-        self.history_x = [self.pos_x]
-        self.history_y = [self.pos_y]
+        self.history_x = [self.pos_x.copy()]
+        self.history_y = [self.pos_y.copy()]
         self.dispersion = [np.zeros(self.size), np.zeros(self.size)]
         self.depth_avgd_disp = [np.zeros(self.size), np.zeros(self.size)]
 
@@ -123,9 +121,9 @@ class Particles:
         self.depth_avgd_disp = depth_avgd_disp_der(self.pos_x, self.pos_y)
 
     def in_domain(self):
-        check = (self.pos_x > self.domain.xmin) 
+        check = (self.pos_x > self.domain.xmin)
         check *= (self.pos_x < self.domain.xmax)
-        check *= (self.pos_y > self.domain.ymin) 
+        check *= (self.pos_y > self.domain.ymin)
         check *= (self.pos_y < self.domain.ymax)
         return check
 
@@ -154,8 +152,8 @@ class Particles:
         self.pos_x += dx
         self.pos_y += dy
 
-        self.history_x.append(self.pos_x)
-        self.history_y.append(self.pos_y)
+        self.history_x.append(self.pos_x.copy())
+        self.history_y.append(self.pos_y.copy())
 
         # TODO: How to do this with numpy arrays?
         self.correct_coords()
@@ -217,7 +215,8 @@ class ParticleSimulation():
 
             file_name = os.path.join(OUTPUT_DIR, file_name)
             plt.savefig(file_name)
-            logger.info(f"Saved end state plot as {file_name}")
+            logger.info(
+                f"Saved state plot at time {self._time:.2f} as {file_name}")
 
         if show:
             plt.show()
@@ -229,10 +228,11 @@ class ParticleSimulation():
         self.plot_current()
 
         for i in range(self._num_steps):
-            logger.debug(f"Status: Step {i+1} of {self._num_steps}", end='\r')
+            status = (i + 1)/ self._num_steps * 100
+            logger.debug(f"Simulation status: {status:4.1f} % done", end='\r')
             self._time += self._dt
             self.particles.euler_step(self._dt)
-        
+
         logger.info("Finished particle model run")
 
         self.plot_current(show=show_plot, file_name=plot_name)
@@ -240,44 +240,42 @@ class ParticleSimulation():
         if animation:
             file_name = f"animation-P{self._num_particles}-S{self._num_steps}-T{self._time:.0f}.mp4"
             file_name = os.path.join(OUTPUT_DIR, file_name)
-            particleAnimation(self.particles, file_name)
+            self.particleAnimation(file_name)
 
+    def particleAnimation(self, file_name=False):
+        logger.info("Starting Animation")
 
-def particleAnimation(particles, file_name=False):
-    logger.info("Starting Animation")
+        particles = self.particles
 
-    xData = np.ones(len(particles)) * 0.5
-    yData = np.ones(len(particles)) * 0.5
+        xData = particles.history_x[0]
+        yData = particles.history_y[0]
 
-    fig, ax = plt.subplots()
-    ln = ax.scatter(xData, yData, color='gray')
+        fig, ax = plt.subplots()
+        ln = ax.scatter(xData, yData, color='r', s=3)
 
-    def update(frame):
-        xData = [particle.xTrack[frame] for particle in particles]
-        yData = [particle.yTrack[frame] for particle in particles]
+        def update(frame):
+            xData = particles.history_x[frame]
+            yData = particles.history_y[frame]
 
-        ln.set_offsets(np.vstack((xData, yData)).T)
-        return ln
+            ln.set_offsets(np.vstack((xData, yData)).T)
+            logger.debug(f"Rendering frame {frame}", end='\r')
+            return ln
 
-    fig.tight_layout()
-    animation = anim.FuncAnimation(fig, update,
-                                   frames=len(particles[0].xTrack),
-                                   interval=200)
-    ax.set_xlim([-1, 1])
-    ax.set_ylim([-1, 1])
+        fig.tight_layout()
+        animation = anim.FuncAnimation(fig, update, frames=self._num_steps,
+                                       interval=200)
+        ax.set_xlim([-1, 1])
+        ax.set_ylim([-1, 1])
 
+        if file_name:
+            animation.save(file_name)
+            logger.info(f"Saved animation as {file_name}")
 
-    if file_name:
-        animation.save(file_name)
-        logger.info(f"Saved animation as {file_name}")
-
-    return animation
+        return animation
 
 
 if __name__ == "__main__":
-    simul = ParticleSimulation(n_particles=10000, n_steps=1000, end_time=100)
+    simul = ParticleSimulation(n_particles=10000, n_steps=1000, end_time=1000)
     simul.run(show_plot=False, plot_name=True, animation=False)
 
-    # p = Particles(100, Domain())
-    # p.scatter_plot()
-    # plt.show()
+    plt.show()

@@ -1,5 +1,8 @@
 """
 Some things that can be used in any file
+Contains:
+    - Timing decorator
+    - Very simple Logger class
 """
 
 import time
