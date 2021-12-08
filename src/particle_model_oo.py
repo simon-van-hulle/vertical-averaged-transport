@@ -6,12 +6,15 @@ The code spits out results, but haven't checked anything (not reliable...)
 """
 
 import math as m
-import matplotlib.pyplot as plt
-import matplotlib.animation as anim
-import numpy as np
-import helpers as h
 import os
 
+import matplotlib.animation as anim
+import matplotlib.pyplot as plt
+import numpy as np
+
+import helpers as h
+
+# Setup logger and absolute paths
 logger = h.Logger()
 CURRENT_FILE = os.path.abspath(__file__)
 CURRENT_DIR = os.path.dirname(CURRENT_FILE)
@@ -120,15 +123,11 @@ class Particles:
         self.dispersion = dispersion_coeffs(self.pos_x, self.pos_y)
         self.depth_avgd_disp = depth_avgd_disp_der(self.pos_x, self.pos_y)
 
-    def in_domain(self):
-        check = (self.pos_x > self.domain.xmin)
-        check *= (self.pos_x < self.domain.xmax)
-        check *= (self.pos_y > self.domain.ymin)
-        check *= (self.pos_y < self.domain.ymax)
-        return check
-
     def correct_coords(self):
-        # How to do this with numpy arrays?
+        """
+        Adjust the positions to make sure they are in the predfined domain
+        TODO: Make this better! This is very very preliminary.
+        """
         for i in range(self.size):
             if self.pos_x[i] < self.domain.xmin:
                 self.pos_x[i] = self.domain.xmin + self.domain.minDx
@@ -141,6 +140,11 @@ class Particles:
                 self.pos_y[i] = self.domain.ymax - self.domain.minDy
 
     def euler_step(self, dt):
+        """
+        Perform one solver step with an Euler scheme implementation
+
+        :param dt: Time step for the numerical solver
+        """
         u, v = velocities(self.pos_x, self.pos_y)
         self.calc_dispersion()
 
@@ -159,6 +163,11 @@ class Particles:
         self.correct_coords()
 
     def scatter(self, color='r'):
+        """
+        Scatter plot all of the particles at their current position
+
+        :param color: particle color, defaults to 'r'
+        """
         plt.scatter(self.pos_x, self.pos_y, color=color, s=3)
 
     def scatter_plot(self, title=None):
@@ -185,25 +194,47 @@ class ParticleSimulation():
 
     # Calculating dependent variables.
     def calc_dt(self):
+        """
+        Get the new value of _dt if anything updated
+        """
         return self._end_time / self._num_steps
 
     # Setters for protected variables
     def set_end_time(self, end_time):
+        """
+        Set a new end time for the simulation and update _dt
+        """
         self._end_time = end_time
         self._dt = self.calc_dt()
 
     def set_num_steps(self, n_steps):
+        """
+        Set new number of steps for the simulation and update _dt
+        """
         self._num_steps = n_steps
         self._dt = self.calc_dt()
 
     def set_num_particles(self, n_particles):
+        """
+        Set number of pollutant particles present in the simulation
+        """
         self._num_particles = n_particles
 
     # Member functions
     def euler_step(self):
+        """
+        Perform one Euler scheme step for all the particles
+        """
         self.particles.euler_step()
 
     def plot_current(self, show=False, file_name=False):
+        """
+        Plot the current configuration of particles and potentially store
+
+        :param show: show the plot during run, defaults to False
+        :param file_name: file name to store the file, defaults to False. 
+                            Use None to prevent storing the file.
+        """
         plt.figure("Particle Distribution")
         plt.xlim([self.domain.xmin, self.domain.xmax])
         plt.ylim([self.domain.ymin, self.domain.ymax])
@@ -228,7 +259,7 @@ class ParticleSimulation():
         self.plot_current()
 
         for i in range(self._num_steps):
-            status = (i + 1)/ self._num_steps * 100
+            status = (i + 1) / self._num_steps * 100
             logger.debug(f"Simulation status: {status:4.1f} % done", end='\r')
             self._time += self._dt
             self.particles.euler_step(self._dt)
