@@ -374,8 +374,7 @@ class ParticleSimulation():
 
 
 if __name__ == "__main__":
-    simul = ParticleSimulation(n_particles=10000, n_steps=1000, end_time=1000, 
-                               scheme="euler")
+    simul = ParticleSimulation(n_particles=10000, n_steps=1000, end_time=1000, scheme="euler")
     simul.run(show_plot=False, plot_name=True, animation=False)
 
     plt.show()
