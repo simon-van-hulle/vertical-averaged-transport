@@ -7,6 +7,7 @@ The code spits out results, but haven't checked anything (not reliable...)
 
 import math as m
 import os
+import sys
 
 import matplotlib.animation as anim
 import matplotlib.pyplot as plt
@@ -61,6 +62,17 @@ def dispersion_coeffs(x, y):
     return [1 + np.cos(np.pi * x), 1 + np.cos(np.pi * y)]
 
 
+def dispersion_der(x, y):
+    """
+    Returns the dispersion coefficient derivatives 
+
+    :param x: x position (array)
+    :param y: y position (array)
+    :return: list of dispersion coefficient derivatives [dDx/dx, dDy/dy]
+    """
+    return [- np.pi * np.sin(np.pi * x), - np.pi * np.cos(np.pi * y)]
+
+
 def depth_avgd_disp_der(x, y):
     """
     Equation term with derivative and division by H
@@ -91,6 +103,20 @@ def velocities(x, y):
     return u, v
 
 
+def velocities_der(x, y):
+    """
+    Calculate water velocity at specified location(s)
+
+    :param x: x position
+    :param y: y position
+    :return: x and y velocity [u, v]
+    """
+    depth = depth_func(x, y)
+    dudx = 2 * x * y / depth
+    dvdx = -2 * x * y / depth
+    return dudx, dvdx
+
+
 def wiener_steps(dt, n):
     """
     n realisations of a wiener process step with $\Delta t = 1$
@@ -102,18 +128,16 @@ def wiener_steps(dt, n):
     """
     return np.random.normal(0, np.sqrt(dt), n)
 
-
 class Particles:
     def __init__(self, N, domain, x=0.5, y=0.5):
         self.size = N
         self.domain = domain
         self.pos_x = x * np.ones(self.size)
-        # self.pos_x = x * np.random.uniform(size=self.size)
         self.pos_y = y * np.ones(self.size)
-        # self.pos_y = y * np.random.uniform(size=self.size)
         self.history_x = [self.pos_x.copy()]
         self.history_y = [self.pos_y.copy()]
         self.dispersion = [np.zeros(self.size), np.zeros(self.size)]
+        self.dispersion_der = [np.zeros(self.size), np.zeros(self.size)]
         self.depth_avgd_disp = [np.zeros(self.size), np.zeros(self.size)]
 
     def calc_dispersion(self):
@@ -121,6 +145,7 @@ class Particles:
         Calculate the dispersion coefficient in x- and y-directions
         """
         self.dispersion = dispersion_coeffs(self.pos_x, self.pos_y)
+        self.dispersion_der = dispersion_der(self.pos_x, self.pos_y)
         self.depth_avgd_disp = depth_avgd_disp_der(self.pos_x, self.pos_y)
 
     def correct_coords(self):
@@ -148,10 +173,46 @@ class Particles:
         u, v = velocities(self.pos_x, self.pos_y)
         self.calc_dispersion()
 
-        dy = (v + self.depth_avgd_disp[1]) * dt + \
-            np.sqrt(2 * self.dispersion[0]) * wiener_steps(dt, self.size)
-        dx = (u + self.depth_avgd_disp[0]) * dt + \
-            np.sqrt(2 * self.dispersion[1]) * wiener_steps(dt, self.size)
+        dx = (u + self.depth_avgd_disp[0]) * dt + np.sqrt(2 * self.dispersion[0]) * wiener_steps(dt, self.size)
+        dy = (v + self.depth_avgd_disp[1]) * dt + np.sqrt(2 * self.dispersion[1]) * wiener_steps(dt, self.size)
+
+        return dx, dy
+
+    def milstein_step(self, dt):
+        """
+        Perform one solver step with a Milstein scheme implementation
+
+        :param dt: Time step for the numerical solver
+        """
+        u, v = velocities(self.pos_x, self.pos_y)
+        dudx, dvdx = velocities_der(self.pos_x, self.pos_y)
+        self.calc_dispersion()
+
+        euler_dx, euler_dy = self.euler_step(dt)
+
+        gx_der = 1 / np.sqrt(2 * self.dispersion[0]) * self.dispersion_der[0]
+        gy_der = 1 / np.sqrt(2 * self.dispersion[1]) * self.dispersion_der[1]
+
+        dx = euler_dx + np.sqrt(self.dispersion[0] / 2) * gx_der * (wiener_steps(dt, self.size) ** 2 - dt)
+        dy = euler_dy + np.sqrt(self.dispersion[1] / 2) * gy_der * (wiener_steps(dt, self.size) ** 2 - dt)
+
+        return dx, dy
+
+    def perform_step(self, dt, scheme="euler"):
+        """
+        Perform one numerical step in the scheme of choice
+
+        :param dt: time step
+        :param scheme: numerical scheme, defaults to "euler"
+        """
+        if scheme == "euler":
+            dx, dy = self.euler_step(dt)
+        elif scheme == "milstein":
+            dx, dy = self.milstein_step(dt)
+        else:
+            print("\n")
+            logger.critical(f"The {scheme} scheme is not implemented.")
+            sys.exit(f"\tExiting...")
 
         self.pos_x += dx
         self.pos_y += dy
@@ -180,17 +241,23 @@ class Particles:
 
 
 class ParticleSimulation():
-    def __init__(self, n_particles, n_steps, end_time=100):
+    def __init__(self, n_particles, n_steps, end_time=100, scheme="euler"):
         # Protected variables
         self._num_particles = n_particles
         self._num_steps = n_steps
         self._end_time = end_time
         self._dt = self.calc_dt()
         self._time = 0
+        self._scheme = scheme
 
         # Public variables
         self.domain = Domain()
         self.particles = Particles(n_particles, self.domain)
+
+    def standard_title(self):
+        title = f"{self._scheme}-P{self._num_particles}"
+        title += f"-S{self._num_steps}-T{self._time:.0f}"
+        return title
 
     # Calculating dependent variables.
     def calc_dt(self):
@@ -221,11 +288,12 @@ class ParticleSimulation():
         self._num_particles = n_particles
 
     # Member functions
-    def euler_step(self):
+    def step(self):
         """
-        Perform one Euler scheme step for all the particles
+        Perform one step for all the particles with the numerical scheme of 
+        choice.
         """
-        self.particles.euler_step()
+        self.particles.perform_step(self._dt, self._scheme)
 
     def plot_current(self, show=False, file_name=False):
         """
@@ -242,7 +310,7 @@ class ParticleSimulation():
 
         if file_name:
             if file_name == True:
-                file_name = f"particles-P{self._num_particles}-S{self._num_steps}-T{self._time:.0f}"
+                file_name = f"particles-{self.standard_title()}"
 
             file_name = os.path.join(OUTPUT_DIR, file_name)
             plt.savefig(file_name)
@@ -262,14 +330,14 @@ class ParticleSimulation():
             status = (i + 1) / self._num_steps * 100
             logger.debug(f"Simulation status: {status:4.1f} % done", end='\r')
             self._time += self._dt
-            self.particles.euler_step(self._dt)
+            self.step()
 
         logger.info("Finished particle model run")
 
         self.plot_current(show=show_plot, file_name=plot_name)
 
         if animation:
-            file_name = f"animation-P{self._num_particles}-S{self._num_steps}-T{self._time:.0f}.mp4"
+            file_name = f"animation-{self.standard_title()}.mp4"
             file_name = os.path.join(OUTPUT_DIR, file_name)
             self.particleAnimation(file_name)
 
@@ -306,7 +374,8 @@ class ParticleSimulation():
 
 
 if __name__ == "__main__":
-    simul = ParticleSimulation(n_particles=10000, n_steps=1000, end_time=1000)
+    simul = ParticleSimulation(n_particles=10000, n_steps=1000, end_time=1000, 
+                               scheme="euler")
     simul.run(show_plot=False, plot_name=True, animation=False)
 
     plt.show()
