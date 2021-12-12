@@ -27,8 +27,6 @@ class Domain:
     """
     We might want to do some magic with keeping everything inside the domain
     That's why I thought it might be nice to have a separate class.
-
-    We might remove this later.
     """
 
     def __init__(self, xmin=-1, xmax=1, ymin=-1, ymax=1):
@@ -41,13 +39,6 @@ class Domain:
 
 
 def depth_func(x, y=None):
-    """
-    Calculates the depth of the water at any location.
-
-    :param x: x position (array)
-    :param y: y position (array), defaults to None
-    :return: depth
-    """
     return 15 + 5 * x
 
 
@@ -55,8 +46,6 @@ def dispersion_coeffs(x, y):
     """
     Returns a list of dispersion coefficients (arrays) for all input locations
 
-    :param x: x position (array)
-    :param y: y position (array)
     :return: list of dispersion coefficients [Dx, Dy]
     """
     return [1 + np.cos(np.pi * x), 1 + np.cos(np.pi * y)]
@@ -66,8 +55,6 @@ def dispersion_der(x, y):
     """
     Returns the dispersion coefficient derivatives 
 
-    :param x: x position (array)
-    :param y: y position (array)
     :return: list of dispersion coefficient derivatives [dDx/dx, dDy/dy]
     """
     return [- np.pi * np.sin(np.pi * x), - np.pi * np.cos(np.pi * y)]
@@ -78,8 +65,6 @@ def depth_avgd_disp_der(x, y):
     Equation term with derivative and division by H
     $\dfrac{1}{H}\dfrac{\partial(HDx)}{\partial x}$ (and equivalent for y)  
 
-    :param x: x position (array)
-    :param y: y position (array)
     :return: list of the derivative terms [d(HDx)/dx/H, d(HDy)/dy/H]
     """
     # TODO: Refactor
@@ -93,8 +78,6 @@ def velocities(x, y):
     """
     Calculate water velocity at specified location(s)
 
-    :param x: x position
-    :param y: y position
     :return: x and y velocity [u, v]
     """
     depth = depth_func(x, y)
@@ -107,8 +90,6 @@ def velocities_der(x, y):
     """
     Calculate water velocity at specified location(s)
 
-    :param x: x position
-    :param y: y position
     :return: x and y velocity [u, v]
     """
     depth = depth_func(x, y)
@@ -226,8 +207,6 @@ class Particles:
     def scatter(self, color='r'):
         """
         Scatter plot all of the particles at their current position
-
-        :param color: particle color, defaults to 'r'
         """
         plt.scatter(self.pos_x, self.pos_y, color=color, s=3)
 
@@ -261,30 +240,18 @@ class ParticleSimulation():
 
     # Calculating dependent variables.
     def calc_dt(self):
-        """
-        Get the new value of _dt if anything updated
-        """
         return self._end_time / self._num_steps
 
     # Setters for protected variables
     def set_end_time(self, end_time):
-        """
-        Set a new end time for the simulation and update _dt
-        """
         self._end_time = end_time
         self._dt = self.calc_dt()
 
     def set_num_steps(self, n_steps):
-        """
-        Set new number of steps for the simulation and update _dt
-        """
         self._num_steps = n_steps
         self._dt = self.calc_dt()
 
     def set_num_particles(self, n_particles):
-        """
-        Set number of pollutant particles present in the simulation
-        """
         self._num_particles = n_particles
 
     # Member functions
@@ -296,13 +263,6 @@ class ParticleSimulation():
         self.particles.perform_step(self._dt, self._scheme)
 
     def plot_current(self, show=False, file_name=False):
-        """
-        Plot the current configuration of particles and potentially store
-
-        :param show: show the plot during run, defaults to False
-        :param file_name: file name to store the file, defaults to False. 
-                            Use None to prevent storing the file.
-        """
         plt.figure("Particle Distribution")
         plt.xlim([self.domain.xmin, self.domain.xmax])
         plt.ylim([self.domain.ymin, self.domain.ymax])
@@ -323,8 +283,6 @@ class ParticleSimulation():
     @h.timing
     def run(self, show_plot=False, plot_name=False, animation=False):
         logger.info("Starting particle model run")
-
-        self.plot_current()
 
         for i in range(self._num_steps):
             status = (i + 1) / self._num_steps * 100
