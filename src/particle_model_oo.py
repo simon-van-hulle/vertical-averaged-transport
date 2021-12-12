@@ -24,11 +24,6 @@ OUTPUT_DIR = os.path.join(PROJECT_DIR, "results")
 
 
 class Domain:
-    """
-    We might want to do some magic with keeping everything inside the domain
-    That's why I thought it might be nice to have a separate class.
-    """
-
     def __init__(self, xmin=-1, xmax=1, ymin=-1, ymax=1):
         self.xmin = xmin
         self.xmax = xmax
@@ -45,8 +40,6 @@ def depth_func(x, y=None):
 def dispersion_coeffs(x, y):
     """
     Returns a list of dispersion coefficients (arrays) for all input locations
-
-    :return: list of dispersion coefficients [Dx, Dy]
     """
     return [1 + np.cos(np.pi * x), 1 + np.cos(np.pi * y)]
 
@@ -54,7 +47,6 @@ def dispersion_coeffs(x, y):
 def dispersion_der(x, y):
     """
     Returns the dispersion coefficient derivatives 
-
     :return: list of dispersion coefficient derivatives [dDx/dx, dDy/dy]
     """
     return [- np.pi * np.sin(np.pi * x), - np.pi * np.cos(np.pi * y)]
@@ -77,8 +69,6 @@ def depth_avgd_disp_der(x, y):
 def velocities(x, y):
     """
     Calculate water velocity at specified location(s)
-
-    :return: x and y velocity [u, v]
     """
     depth = depth_func(x, y)
     u = - y * (1 - x * x) / depth
@@ -89,8 +79,6 @@ def velocities(x, y):
 def velocities_der(x, y):
     """
     Calculate water velocity at specified location(s)
-
-    :return: x and y velocity [u, v]
     """
     depth = depth_func(x, y)
     dudx = 2 * x * y / depth
@@ -100,19 +88,14 @@ def velocities_der(x, y):
 
 def wiener_steps(dt, n):
     """
-    n realisations of a wiener process step with $\Delta t = 1$
     $W_{t+\Delta t} - W_{t} = N(0, \Delta t)$
-
-    :param dt: Time step
-    :param n: number of steps to generate (e.g. number of particles)
-    :return: np array with n steps of the Wiener process
     """
     return np.random.normal(0, np.sqrt(dt), n)
 
 class Particles:
-    def __init__(self, N, domain, x=0.5, y=0.5):
+    def __init__(self, N, domain=None, x=0.5, y=0.5):
         self.size = N
-        self.domain = domain
+        self.domain = domain or Domain()
         self.pos_x = x * np.ones(self.size)
         self.pos_y = y * np.ones(self.size)
         self.history_x = [self.pos_x.copy()]
