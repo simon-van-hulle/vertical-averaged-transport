@@ -4,7 +4,6 @@
 A first, intuitive implementation.
 The code spits out results, but haven't checked anything (not reliable...)
 """
-import math as m
 import os
 import sys
 
@@ -87,9 +86,9 @@ def wiener_steps(dt, n_particles):
 
 class Domain:
     def __init__(self, xmin=-1, xmax=1, ymin=-1, ymax=1, min_factor=0.01):
-        self.xmin: float = xmin
-        self.xmax: float = xmax
-        self.ymin: float = ymin
+        self.xmin = xmin
+        self.xmax = xmax
+        self.ymin = ymin
         self.ymax = ymax
         self.minDx = min_factor * (self.xmax - self.xmin)
         self.minDy = min_factor * (self.ymax - self.ymin)
@@ -138,9 +137,9 @@ class Particles:
         self.pos_y = y * np.ones(self.size)
         self.history_x = [self.pos_x.copy()]
         self.history_y = [self.pos_y.copy()]
-        self.dispersion = [np.zeros(self.size), np.zeros(self.size)]
-        self.dispersion_der = [np.zeros(self.size), np.zeros(self.size)]
-        self.depth_avgd_disp = [np.zeros(self.size), np.zeros(self.size)]
+        self.dispersion = None
+        self.dispersion_der = None
+        self.depth_avgd_disp = None
 
     def calc_dispersion(self):
         """
@@ -224,20 +223,20 @@ class Particles:
         """
         Scatter plot all of the particles at their current position
         """
-        plt.scatter(self.pos_x, self.pos_y, color=color, s=3)
+        plt.scatter(self.pos_x, self.pos_y, color=color, s=5)
 
     def scatter_plot(self, title=None):
         title = title or f"Particles - P{self.size}"
         plt.figure(title)
-        self.scatter()
         plt.title(title)
+        self.scatter()
         plt.xlim([self.domain.xmin, self.domain.xmax])
         plt.ylim([self.domain.ymin, self.domain.ymax])
-
+        plt.xlabel(r"$x$")
+        plt.ylabel(r"$y$")
 
 class ParticleSimulation():
     def __init__(self, n_particles, n_steps, end_time=100, scheme="euler"):
-        # Protected variables
         self._num_particles = n_particles
         self._num_steps = n_steps
         self._end_time = end_time
@@ -246,7 +245,6 @@ class ParticleSimulation():
         self._current_step = 0
         self._scheme = scheme
 
-        # Public variables
         self.domain = Domain()
         self.wiener_x = WienerProcess(n_steps, n_particles, self._dt)
         self.wiener_y = WienerProcess(n_steps, n_particles, self._dt)
@@ -280,6 +278,9 @@ class ParticleSimulation():
         Perform one step for all the particles with the numerical scheme of 
         choice.
         """
+        status = (self._current_step + 1) / self._num_steps * 100
+        logger.debug(f"Simulation status: {status:4.1f} % done", end='\r')
+        self._time += self._dt
         self.particles.perform_step(self._current_step, self._dt, self._scheme)
 
     def plot_current(self, show=False, file_name=False):
@@ -294,8 +295,7 @@ class ParticleSimulation():
 
             file_name = os.path.join(OUTPUT_DIR, file_name)
             plt.savefig(file_name)
-            logger.info(
-                f"Saved state plot at time {self._time:.2f} as {file_name}")
+            logger.info(f"Saved state plot at time {self._time:.2f} as {file_name}")
 
         if show:
             plt.show()
@@ -303,11 +303,8 @@ class ParticleSimulation():
     @h.timing
     def run(self, show_plot=False, plot_name=False, animation=False):
         logger.info("Starting particle model run")
-
+        
         for self._current_step in range(self._num_steps):
-            status = (self._current_step + 1) / self._num_steps * 100
-            logger.debug(f"Simulation status: {status:4.1f} % done", end='\r')
-            self._time += self._dt
             self.step()
 
         logger.info("Finished particle model run")
@@ -315,12 +312,13 @@ class ParticleSimulation():
         self.plot_current(show=show_plot, file_name=plot_name)
 
         if animation:
-            file_name = f"animation-{self.standard_title()}.mp4"
-            file_name = os.path.join(OUTPUT_DIR, file_name)
-            self.particleAnimation(file_name)
+            self.particleAnimation()
 
-    def particleAnimation(self, file_name=False):
+    def particleAnimation(self):
         logger.info("Starting Animation")
+
+        file_name = f"animation-{self.standard_title()}.mp4"
+        file_name = os.path.join(OUTPUT_DIR, file_name)
 
         particles = self.particles
 
@@ -328,7 +326,7 @@ class ParticleSimulation():
         yData = particles.history_y[0]
 
         fig, ax = plt.subplots()
-        ln = ax.scatter(xData, yData, color='r', s=3)
+        ln = ax.scatter(xData, yData, color='r', s=5)
 
         def update(frame):
             xData = particles.history_x[frame]
@@ -341,8 +339,8 @@ class ParticleSimulation():
         fig.tight_layout()
         animation = anim.FuncAnimation(fig, update, frames=self._num_steps,
                                        interval=200)
-        ax.set_xlim([-1, 1])
-        ax.set_ylim([-1, 1])
+        ax.set_xlim([self.domain.xmin, self.domain.xmax])
+        ax.set_ylim([self.domain.ymin, self.domain.ymax])
 
         if file_name:
             animation.save(file_name)
@@ -352,8 +350,8 @@ class ParticleSimulation():
 
 
 if __name__ == "__main__":
-    simul = ParticleSimulation(n_particles=1000, n_steps=100000,
-                               end_time=1000, scheme="euler")
+    simul = ParticleSimulation(n_particles=10, n_steps=100000,
+                               end_time=1000, scheme="milstein")
     simul.run(show_plot=False, plot_name=True, animation=False)
 
     plt.show()
