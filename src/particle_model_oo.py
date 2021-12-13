@@ -13,8 +13,8 @@ import numpy as np
 
 import helpers as h
 
-# Setup logger and absolute paths
-logger = h.Logger()
+logger = h.easy_logger(__name__)
+
 CURRENT_FILE = os.path.abspath(__file__)
 CURRENT_DIR = os.path.dirname(CURRENT_FILE)
 PROJECT_DIR = os.path.dirname(CURRENT_DIR)
@@ -52,9 +52,9 @@ def depth_avgd_disp_der(x, y):
     :return: list of the derivative terms [d(HDx)/dx/H, d(HDy)/dy/H]
     """
     depth = depth_func(x, y)
-    x_comp = 5 * (1 + np.cos(np.pi * x) - (3 + x) * np.sin(np.pi * x)) / depth
-    y_comp = -5 * np.pi * (3 + x) * np.sin(np.pi * y) / depth
-    return [x_comp, y_comp]
+    x_comp = 5 * (1 + np.cos(np.pi * x) - np.pi * (3 + x) * np.sin(np.pi * x))
+    y_comp = -5 * np.pi * (3 + x) * np.sin(np.pi * y)
+    return [x_comp / depth, y_comp / depth]
 
 
 def velocities(x, y):
@@ -223,7 +223,7 @@ class Particles:
         """
         Scatter plot all of the particles at their current position
         """
-        plt.scatter(self.pos_x, self.pos_y, color=color, s=5)
+        plt.scatter(self.pos_x, self.pos_y, color=color, s=20)
 
     def scatter_plot(self, title=None):
         title = title or f"Particles - P{self.size}"
@@ -234,6 +234,7 @@ class Particles:
         plt.ylim([self.domain.ymin, self.domain.ymax])
         plt.xlabel(r"$x$")
         plt.ylabel(r"$y$")
+
 
 class ParticleSimulation():
     def __init__(self, n_particles, n_steps, end_time=100, scheme="euler"):
@@ -248,8 +249,8 @@ class ParticleSimulation():
         self.domain = Domain()
         self.wiener_x = WienerProcess(n_steps, n_particles, self._dt)
         self.wiener_y = WienerProcess(n_steps, n_particles, self._dt)
-        self.particles = Particles(
-            n_particles, self.wiener_x, self.wiener_y, self.domain)
+        self.particles = Particles(n_particles, self.wiener_x,
+                                   self.wiener_y, self.domain)
 
     def standard_title(self):
         title = f"{self._scheme}-P{self._num_particles}"
@@ -279,7 +280,7 @@ class ParticleSimulation():
         choice.
         """
         status = (self._current_step + 1) / self._num_steps * 100
-        logger.debug(f"Simulation status: {status:4.1f} % done", end='\r')
+        logger.debug(f"Simulation status: {status:4.1f} % done")
         self._time += self._dt
         self.particles.perform_step(self._current_step, self._dt, self._scheme)
 
@@ -295,7 +296,8 @@ class ParticleSimulation():
 
             file_name = os.path.join(OUTPUT_DIR, file_name)
             plt.savefig(file_name)
-            logger.info(f"Saved state plot at time {self._time:.2f} as {file_name}")
+            logger.info(
+                f"Saved state plot at time {self._time:.2f} as {file_name}")
 
         if show:
             plt.show()
@@ -303,7 +305,7 @@ class ParticleSimulation():
     @h.timing
     def run(self, show_plot=False, plot_name=False, animation=False):
         logger.info("Starting particle model run")
-        
+
         for self._current_step in range(self._num_steps):
             self.step()
 
@@ -351,7 +353,7 @@ class ParticleSimulation():
 
 if __name__ == "__main__":
     simul = ParticleSimulation(n_particles=10, n_steps=100000,
-                               end_time=1000, scheme="milstein")
+                               end_time=1000, scheme="euler")
     simul.run(show_plot=False, plot_name=True, animation=False)
 
     plt.show()
