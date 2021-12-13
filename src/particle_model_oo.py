@@ -4,7 +4,6 @@
 A first, intuitive implementation.
 The code spits out results, but haven't checked anything (not reliable...)
 """
-
 import math as m
 import os
 import sys
@@ -22,35 +21,34 @@ CURRENT_DIR = os.path.dirname(CURRENT_FILE)
 PROJECT_DIR = os.path.dirname(CURRENT_DIR)
 OUTPUT_DIR = os.path.join(PROJECT_DIR, "results")
 
-
 class Domain:
-    def __init__(self, xmin=-1, xmax=1, ymin=-1, ymax=1):
-        self.xmin = xmin
-        self.xmax = xmax
-        self.ymin = ymin
+    def __init__(self, xmin=-1, xmax=1, ymin=-1, ymax=1, min_factor=0.01):
+        self.xmin : float = xmin
+        self.xmax : float = xmax
+        self.ymin : float = ymin
         self.ymax = ymax
-        self.minDx = 0.01 * (self.xmax - self.xmin)
-        self.minDy = 0.01 * (self.ymax - self.ymin)
-
+        self.minDx = min_factor * (self.xmax - self.xmin)
+        self.minDy = min_factor * (self.ymax - self.ymin)
 
 def depth_func(x, y=None):
     return 15 + 5 * x
-
 
 def dispersion_coeffs(x, y):
     """
     Returns a list of dispersion coefficients (arrays) for all input locations
     """
-    return [1 + np.cos(np.pi * x), 1 + np.cos(np.pi * y)]
-
+    Dx = 1 + np.cos(np.pi * x)
+    Dy = 1 + np.cos(np.pi * y)
+    return [Dx, Dy]
 
 def dispersion_der(x, y):
     """
     Returns the dispersion coefficient derivatives 
     :return: list of dispersion coefficient derivatives [dDx/dx, dDy/dy]
     """
-    return [- np.pi * np.sin(np.pi * x), - np.pi * np.cos(np.pi * y)]
-
+    dDxdx = - np.pi * np.sin(np.pi * x)
+    dDydy = - np.pi * np.cos(np.pi * y)
+    return [dDxdx, dDydy]
 
 def depth_avgd_disp_der(x, y):
     """
@@ -59,12 +57,10 @@ def depth_avgd_disp_der(x, y):
 
     :return: list of the derivative terms [d(HDx)/dx/H, d(HDy)/dy/H]
     """
-    # TODO: Refactor
     depth = depth_func(x, y)
     x_comp = 5 * (1 + np.cos(np.pi * x) - (3 + x) * np.sin(np.pi * x)) / depth
     y_comp = -5 * np.pi * (3 + x) * np.sin(np.pi * y) / depth
     return [x_comp, y_comp]
-
 
 def velocities(x, y):
     """
@@ -75,7 +71,6 @@ def velocities(x, y):
     v = x * (1 - y * y) / depth
     return u, v
 
-
 def velocities_der(x, y):
     """
     Calculate water velocity at specified location(s)
@@ -84,7 +79,6 @@ def velocities_der(x, y):
     dudx = 2 * x * y / depth
     dvdx = -2 * x * y / depth
     return dudx, dvdx
-
 
 def wiener_steps(dt, n):
     """
@@ -315,7 +309,7 @@ class ParticleSimulation():
 
 
 if __name__ == "__main__":
-    simul = ParticleSimulation(n_particles=10000, n_steps=1000, end_time=1000, scheme="euler")
+    simul = ParticleSimulation(n_particles=10000, n_steps=100000, end_time=1000, scheme="euler")
     simul.run(show_plot=False, plot_name=True, animation=False)
 
     plt.show()
