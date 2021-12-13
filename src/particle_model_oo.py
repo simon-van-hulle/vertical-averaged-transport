@@ -125,8 +125,6 @@ class Particles:
     def euler_step(self, dt):
         """
         Perform one solver step with an Euler scheme implementation
-
-        :param dt: Time step for the numerical solver
         """
         u, v = velocities(self.pos_x, self.pos_y)
         self.calc_dispersion()
@@ -139,8 +137,6 @@ class Particles:
     def milstein_step(self, dt):
         """
         Perform one solver step with a Milstein scheme implementation
-
-        :param dt: Time step for the numerical solver
         """
         u, v = velocities(self.pos_x, self.pos_y)
         dudx, dvdx = velocities_der(self.pos_x, self.pos_y)
@@ -159,9 +155,6 @@ class Particles:
     def perform_step(self, dt, scheme="euler"):
         """
         Perform one numerical step in the scheme of choice
-
-        :param dt: time step
-        :param scheme: numerical scheme, defaults to "euler"
         """
         if scheme == "euler":
             dx, dy = self.euler_step(dt)
