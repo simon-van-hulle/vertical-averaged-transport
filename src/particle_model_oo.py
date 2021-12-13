@@ -21,17 +21,10 @@ CURRENT_DIR = os.path.dirname(CURRENT_FILE)
 PROJECT_DIR = os.path.dirname(CURRENT_DIR)
 OUTPUT_DIR = os.path.join(PROJECT_DIR, "results")
 
-class Domain:
-    def __init__(self, xmin=-1, xmax=1, ymin=-1, ymax=1, min_factor=0.01):
-        self.xmin : float = xmin
-        self.xmax : float = xmax
-        self.ymin : float = ymin
-        self.ymax = ymax
-        self.minDx = min_factor * (self.xmax - self.xmin)
-        self.minDy = min_factor * (self.ymax - self.ymin)
 
 def depth_func(x, y=None):
     return 15 + 5 * x
+
 
 def dispersion_coeffs(x, y):
     """
@@ -41,6 +34,7 @@ def dispersion_coeffs(x, y):
     Dy = 1 + np.cos(np.pi * y)
     return [Dx, Dy]
 
+
 def dispersion_der(x, y):
     """
     Returns the dispersion coefficient derivatives 
@@ -49,6 +43,7 @@ def dispersion_der(x, y):
     dDxdx = - np.pi * np.sin(np.pi * x)
     dDydy = - np.pi * np.cos(np.pi * y)
     return [dDxdx, dDydy]
+
 
 def depth_avgd_disp_der(x, y):
     """
@@ -62,6 +57,7 @@ def depth_avgd_disp_der(x, y):
     y_comp = -5 * np.pi * (3 + x) * np.sin(np.pi * y) / depth
     return [x_comp, y_comp]
 
+
 def velocities(x, y):
     """
     Calculate water velocity at specified location(s)
@@ -70,6 +66,7 @@ def velocities(x, y):
     u = - y * (1 - x * x) / depth
     v = x * (1 - y * y) / depth
     return u, v
+
 
 def velocities_der(x, y):
     """
@@ -80,16 +77,63 @@ def velocities_der(x, y):
     dvdx = -2 * x * y / depth
     return dudx, dvdx
 
-def wiener_steps(dt, n):
+
+def wiener_steps(dt, n_particles):
     """
     $W_{t+\Delta t} - W_{t} = N(0, \Delta t)$
     """
-    return np.random.normal(0, np.sqrt(dt), n)
+    return np.random.normal(0, np.sqrt(dt), n_particles)
+
+
+class Domain:
+    def __init__(self, xmin=-1, xmax=1, ymin=-1, ymax=1, min_factor=0.01):
+        self.xmin: float = xmin
+        self.xmax: float = xmax
+        self.ymin: float = ymin
+        self.ymax = ymax
+        self.minDx = min_factor * (self.xmax - self.xmin)
+        self.minDy = min_factor * (self.ymax - self.ymin)
+
+
+class WienerProcess:
+    def __init__(self, n_steps, n_particles, dt):
+        self.dt = dt
+        self.n_steps = n_steps
+        self.n_particles = n_particles
+        self.wiener_steps = self.generate_steps()
+        self.process = self.get_process()
+
+    def generate_steps(self):
+        logger.info("Generating Wiener Proces steps")
+        std_deviation = np.sqrt(self.dt)
+        shape = (self.n_steps, self.n_particles)
+        steps = np.random.normal(0, std_deviation, shape)
+        return steps
+
+    def get_process(self):
+        wiener = np.zeros((self.n_steps, self.n_particles))
+        wiener[0] = self.wiener_steps[0]
+        for i, step in enumerate(self.wiener_steps[1:]):
+            wiener[i] = wiener[i - 1] + step
+        return wiener
+
+    def get_step(self, step_num):
+        return self.wiener_steps[step_num]
+
+    def plot(self):
+        title = "Wiener Process"
+        plt.figure(title)
+        plt.title(title)
+        plt.plot(self.process)
+
 
 class Particles:
-    def __init__(self, N, domain=None, x=0.5, y=0.5):
+    def __init__(self, N, wiener_x, wiener_y, domain=None, x=0.5, y=0.5):
         self.size = N
         self.domain = domain or Domain()
+        self.wiener_x = wiener_x
+        self.wiener_y = wiener_y
+
         self.pos_x = x * np.ones(self.size)
         self.pos_y = y * np.ones(self.size)
         self.history_x = [self.pos_x.copy()]
@@ -122,44 +166,46 @@ class Particles:
             elif self.pos_y[i] > self.domain.ymax:
                 self.pos_y[i] = self.domain.ymax - self.domain.minDy
 
-    def euler_step(self, dt):
+    def euler_step(self, wiener_step_x, wiener_step_y, dt):
         """
         Perform one solver step with an Euler scheme implementation
         """
         u, v = velocities(self.pos_x, self.pos_y)
-        self.calc_dispersion()
 
-        dx = (u + self.depth_avgd_disp[0]) * dt + np.sqrt(2 * self.dispersion[0]) * wiener_steps(dt, self.size)
-        dy = (v + self.depth_avgd_disp[1]) * dt + np.sqrt(2 * self.dispersion[1]) * wiener_steps(dt, self.size)
+        fx = u + self.depth_avgd_disp[0]
+        fy = v + self.depth_avgd_disp[1]
+        gx = np.sqrt(2 * self.dispersion[0])
+        gy = np.sqrt(2 * self.dispersion[1])
+
+        dx = fx * dt + gx * wiener_step_x
+        dy = fy * dt + gy * wiener_step_y
 
         return dx, dy
 
-    def milstein_step(self, dt):
+    def milstein_step(self, wiener_step_x, wiener_step_y, dt):
         """
         Perform one solver step with a Milstein scheme implementation
         """
-        u, v = velocities(self.pos_x, self.pos_y)
-        dudx, dvdx = velocities_der(self.pos_x, self.pos_y)
-        self.calc_dispersion()
 
-        euler_dx, euler_dy = self.euler_step(dt)
+        euler_dx, euler_dy = self.euler_step(wiener_step_x, wiener_step_y, dt)
 
-        gx_der = 1 / np.sqrt(2 * self.dispersion[0]) * self.dispersion_der[0]
-        gy_der = 1 / np.sqrt(2 * self.dispersion[1]) * self.dispersion_der[1]
-
-        dx = euler_dx + np.sqrt(self.dispersion[0] / 2) * gx_der * (wiener_steps(dt, self.size) ** 2 - dt)
-        dy = euler_dy + np.sqrt(self.dispersion[1] / 2) * gy_der * (wiener_steps(dt, self.size) ** 2 - dt)
+        dx = euler_dx + self.dispersion_der[0] / 2 * (wiener_step_x ** 2 - dt)
+        dy = euler_dy + self.dispersion_der[1] / 2 * (wiener_step_y ** 2 - dt)
 
         return dx, dy
 
-    def perform_step(self, dt, scheme="euler"):
+    def perform_step(self, current_step, dt, scheme="euler"):
         """
         Perform one numerical step in the scheme of choice
         """
+        self.calc_dispersion()
+        wiener_step_x = self.wiener_x.get_step(current_step)
+        wiener_step_y = self.wiener_y.get_step(current_step)
+
         if scheme == "euler":
-            dx, dy = self.euler_step(dt)
+            dx, dy = self.euler_step(wiener_step_x, wiener_step_y, dt)
         elif scheme == "milstein":
-            dx, dy = self.milstein_step(dt)
+            dx, dy = self.milstein_step(wiener_step_x, wiener_step_y, dt)
         else:
             print("\n")
             logger.critical(f"The {scheme} scheme is not implemented.")
@@ -197,11 +243,15 @@ class ParticleSimulation():
         self._end_time = end_time
         self._dt = self.calc_dt()
         self._time = 0
+        self._current_step = 0
         self._scheme = scheme
 
         # Public variables
         self.domain = Domain()
-        self.particles = Particles(n_particles, self.domain)
+        self.wiener_x = WienerProcess(n_steps, n_particles, self._dt)
+        self.wiener_y = WienerProcess(n_steps, n_particles, self._dt)
+        self.particles = Particles(
+            n_particles, self.wiener_x, self.wiener_y, self.domain)
 
     def standard_title(self):
         title = f"{self._scheme}-P{self._num_particles}"
@@ -230,7 +280,7 @@ class ParticleSimulation():
         Perform one step for all the particles with the numerical scheme of 
         choice.
         """
-        self.particles.perform_step(self._dt, self._scheme)
+        self.particles.perform_step(self._current_step, self._dt, self._scheme)
 
     def plot_current(self, show=False, file_name=False):
         plt.figure("Particle Distribution")
@@ -254,8 +304,8 @@ class ParticleSimulation():
     def run(self, show_plot=False, plot_name=False, animation=False):
         logger.info("Starting particle model run")
 
-        for i in range(self._num_steps):
-            status = (i + 1) / self._num_steps * 100
+        for self._current_step in range(self._num_steps):
+            status = (self._current_step + 1) / self._num_steps * 100
             logger.debug(f"Simulation status: {status:4.1f} % done", end='\r')
             self._time += self._dt
             self.step()
@@ -302,7 +352,8 @@ class ParticleSimulation():
 
 
 if __name__ == "__main__":
-    simul = ParticleSimulation(n_particles=10000, n_steps=100000, end_time=1000, scheme="euler")
+    simul = ParticleSimulation(n_particles=1000, n_steps=100000,
+                               end_time=1000, scheme="euler")
     simul.run(show_plot=False, plot_name=True, animation=False)
 
     plt.show()
