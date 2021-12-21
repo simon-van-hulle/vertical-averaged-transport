@@ -103,7 +103,7 @@ class WienerProcess:
         self.process = self.get_process()
 
     def generate_steps(self):
-        logger.info("Generating Wiener Proces steps")
+        logger.info(f"Generating Wiener Proces with {self.n_steps} steps")
         std_deviation = np.sqrt(self.dt)
         shape = (self.n_steps, self.n_particles)
         steps = np.random.normal(0, std_deviation, shape)
@@ -304,7 +304,7 @@ class ParticleSimulation():
 
     @h.timing
     def run(self, show_plot=False, plot_name=False, animation=False):
-        logger.info("Starting particle model run")
+        logger.info(f"Starting particle model run with {self.scheme} scheme")
 
         for self._current_step in range(self._num_steps):
             self.step()
@@ -352,8 +352,8 @@ class ParticleSimulation():
 
 
 if __name__ == "__main__":
-    simul = ParticleSimulation(n_particles=10, n_steps=100000,
-                               end_time=1000, scheme="euler")
+    simul = ParticleSimulation(n_particles=1000, n_steps=100000,
+                               end_time=1000, scheme="milstein")
     simul.run(show_plot=False, plot_name=True, animation=False)
 
     plt.show()
