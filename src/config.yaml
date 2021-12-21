@@ -1,0 +1,8 @@
+num-particles:  1000
+num-steps: 10000
+end-time: 1000
+scheme: milstein
+
+make-animation: False
+store-plot: True
+show-end: True

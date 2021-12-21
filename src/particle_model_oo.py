@@ -11,9 +11,13 @@ import matplotlib.animation as anim
 import matplotlib.pyplot as plt
 import numpy as np
 
+import logging
+import enlighten
+import configargparse
+
 import helpers as h
 
-logger = h.easy_logger(__name__)
+logger = h.easy_logger(__name__, logging.INFO)
 
 CURRENT_FILE = os.path.abspath(__file__)
 CURRENT_DIR = os.path.dirname(CURRENT_FILE)
@@ -36,7 +40,7 @@ def dispersion_coeffs(x, y):
 
 def dispersion_der(x, y):
     """
-    Returns the dispersion coefficient derivatives 
+    Returns the dispersion coefficient derivatives
     :return: list of dispersion coefficient derivatives [dDx/dx, dDy/dy]
     """
     dDxdx = - np.pi * np.sin(np.pi * x)
@@ -47,7 +51,7 @@ def dispersion_der(x, y):
 def depth_avgd_disp_der(x, y):
     """
     Equation term with derivative and division by H
-    $\dfrac{1}{H}\dfrac{\partial(HDx)}{\partial x}$ (and equivalent for y)  
+    $\dfrac{1}{H}\dfrac{\partial(HDx)}{\partial x}$ (and equivalent for y)
 
     :return: list of the derivative terms [d(HDx)/dx/H, d(HDy)/dy/H]
     """
@@ -237,19 +241,20 @@ class Particles:
 
 
 class ParticleSimulation():
-    def __init__(self, n_particles, n_steps, end_time=100, scheme="euler"):
-        self._num_particles = n_particles
-        self._num_steps = n_steps
-        self._end_time = end_time
+    def __init__(self, config):
+        c = config
+        self._num_particles = c.num_particles
+        self._num_steps = c.num_steps
+        self._end_time = c.end_time
         self._dt = self.calc_dt()
         self._time = 0
         self._current_step = 0
-        self._scheme = scheme
+        self._scheme = c.scheme
 
         self.domain = Domain()
-        self.wiener_x = WienerProcess(n_steps, n_particles, self._dt)
-        self.wiener_y = WienerProcess(n_steps, n_particles, self._dt)
-        self.particles = Particles(n_particles, self.wiener_x,
+        self.wiener_x = WienerProcess(c.num_steps, c.num_particles, self._dt)
+        self.wiener_y = WienerProcess(c.num_steps, c.num_particles, self._dt)
+        self.particles = Particles(c.num_particles, self.wiener_x,
                                    self.wiener_y, self.domain)
 
     def standard_title(self):
@@ -276,7 +281,7 @@ class ParticleSimulation():
     # Member functions
     def step(self):
         """
-        Perform one step for all the particles with the numerical scheme of 
+        Perform one step for all the particles with the numerical scheme of
         choice.
         """
         status = (self._current_step + 1) / self._num_steps * 100
@@ -284,40 +289,48 @@ class ParticleSimulation():
         self._time += self._dt
         self.particles.perform_step(self._current_step, self._dt, self._scheme)
 
-    def plot_current(self, show=False, file_name=False):
+    def plot_current(self, show_plot=False, store_plot=False, file_name=False):
         plt.figure("Particle Distribution")
         plt.xlim([self.domain.xmin, self.domain.xmax])
         plt.ylim([self.domain.ymin, self.domain.ymax])
         self.particles.scatter()
 
-        if file_name:
-            if file_name == True:
-                file_name = f"particles-{self.standard_title()}"
+        if not file_name:
+            file_name = f"particles-{self.standard_title()}"
 
+        if store_plot or not show_plot:
             file_name = os.path.join(OUTPUT_DIR, file_name)
             plt.savefig(file_name)
             logger.info(
                 f"Saved state plot at time {self._time:.2f} as {file_name}")
 
-        if show:
+        if show_plot:
             plt.show()
 
-    @h.timing
-    def run(self, show_plot=False, plot_name=False, animation=False):
+    def run(self, c):
+        c = config
         logger.info(f"Starting particle model run with {self._scheme} scheme")
-
+        run_progress_bar = enlighten.Counter(total=self._num_steps,
+                                             desc='Particle Model Run',
+                                             min_delta=1,
+                                             unit='ticks')
         for self._current_step in range(self._num_steps):
             self.step()
+            run_progress_bar.update()
 
         logger.info("Finished particle model run")
 
-        self.plot_current(show=show_plot, file_name=plot_name)
+        self.plot_current(show_plot=c.show_all, store_plot=c.store_plot)
 
-        if animation:
+        if c.make_animation:
             self.particleAnimation()
 
     def particleAnimation(self):
         logger.info("Starting Animation")
+        animation_progress_bar = enlighten.Counter(total=self._num_steps,
+                                                   desc='Generating Animation',
+                                                   min_delta=1,
+                                                   unit='ticks')
 
         file_name = f"animation-{self.standard_title()}.mp4"
         file_name = os.path.join(OUTPUT_DIR, file_name)
@@ -335,7 +348,7 @@ class ParticleSimulation():
             yData = particles.history_y[frame]
 
             ln.set_offsets(np.vstack((xData, yData)).T)
-            logger.debug(f"Rendering frame {frame}", end='\r')
+            animation_progress_bar.update()
             return ln
 
         fig.tight_layout()
@@ -346,14 +359,46 @@ class ParticleSimulation():
 
         if file_name:
             animation.save(file_name)
+            print("\n")
             logger.info(f"Saved animation as {file_name}")
 
         return animation
 
 
-if __name__ == "__main__":
-    simul = ParticleSimulation(n_particles=1000, n_steps=100000,
-                               end_time=1000, scheme="milstein")
-    simul.run(show_plot=False, plot_name=True, animation=False)
+def parse_configuration():
+    p = configargparse.ArgumentParser()
+    p = configargparse.ArgParser(
+        default_config_files=[f'{CURRENT_DIR}/config.yaml'])
+    p.add('-c', '--my-config', is_config_file=True, metavar='',
+          help='config file path')
+    p.add('-p', '--num-particles', type=int, default=1000, metavar='',
+          help='number of particles in the simulation')
+    p.add('-st', '--num-steps', type=int, default=1000, metavar='',
+          help='number of numerical steps in the simulation')
+    p.add('-t', '--end-time', type=int, default=1000, metavar='',
+          help='time (seconds) to stop the simulation')
+    p.add('-sc', '--scheme', type=str, default="euler", metavar='',
+          help='numerical scheme for the simulation')
+    p.add('-a', '--make-animation', action='store_true',
+          help='make animation or not')
+    p.add('-pshowall', '--show-all', action='store_true', 
+          help='show all plots and block excecution')
+    p.add('-pstore', '--store-plot', action='store_true',
+          help='store plot in results/ directory')
+    p.add('-eshow', '--show-end', action='store_true', 
+          help='show plot of end state')
 
-    plt.show()
+    args = p.parse_args()
+    logger.info("Configuration parameters:\n")
+    print(p.format_values())
+
+    return args
+
+
+if __name__ == "__main__":
+    config = parse_configuration()
+    simul = ParticleSimulation(config)
+    simul.run(config)
+
+    if config.show_end:
+        plt.show()

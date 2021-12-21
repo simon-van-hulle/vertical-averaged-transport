@@ -6,7 +6,11 @@ vertically averaged advection-diffusion equation.
 Add description
 
 ## Installation
-Maybe add installation details
+
+Make sure your python installation has all of the required modules
+```bash
+pip3 install -r requirements.txt
+```
 
 ## Usage
 Add usage
