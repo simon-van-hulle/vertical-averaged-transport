@@ -304,7 +304,7 @@ class ParticleSimulation():
 
     @h.timing
     def run(self, show_plot=False, plot_name=False, animation=False):
-        logger.info(f"Starting particle model run with {self.scheme} scheme")
+        logger.info(f"Starting particle model run with {self._scheme} scheme")
 
         for self._current_step in range(self._num_steps):
             self.step()
