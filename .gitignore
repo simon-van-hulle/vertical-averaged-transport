@@ -1,4 +1,5 @@
 **/__pycache__/
 *temp.py
 *OLD
-*.mp4
+results/*.mp4
+results/*.png

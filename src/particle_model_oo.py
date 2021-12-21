@@ -170,9 +170,6 @@ class Particles:
                 self.pos_y[i] = self.domain.ymax - self.domain.minDy
 
     def euler_step(self, wiener_step_x, wiener_step_y, dt):
-        """
-        Perform one solver step with an Euler scheme implementation
-        """
         u, v = velocities(self.pos_x, self.pos_y)
 
         fx = u + self.depth_avgd_disp[0]
@@ -186,10 +183,6 @@ class Particles:
         return dx, dy
 
     def milstein_step(self, wiener_step_x, wiener_step_y, dt):
-        """
-        Perform one solver step with a Milstein scheme implementation
-        """
-
         euler_dx, euler_dy = self.euler_step(wiener_step_x, wiener_step_y, dt)
 
         dx = euler_dx + self.dispersion_der[0] / 2 * (wiener_step_x ** 2 - dt)
@@ -224,8 +217,7 @@ class Particles:
         self.correct_coords()
 
     def scatter(self, color='r'):
-        """
-        Scatter plot all of the particles at their current position
+        """Scatter plot all of the particles at their current position
         """
         plt.scatter(self.pos_x, self.pos_y, color=color, s=20)
 
@@ -280,8 +272,7 @@ class ParticleSimulation():
 
     # Member functions
     def step(self):
-        """
-        Perform one step for all the particles with the numerical scheme of
+        """Perform one step for all the particles with the numerical scheme of
         choice.
         """
         status = (self._current_step + 1) / self._num_steps * 100
@@ -381,11 +372,11 @@ def parse_configuration():
           help='numerical scheme for the simulation')
     p.add('-a', '--make-animation', action='store_true',
           help='make animation or not')
-    p.add('-pshowall', '--show-all', action='store_true', 
+    p.add('-pshowall', '--show-all', action='store_true',
           help='show all plots and block excecution')
     p.add('-pstore', '--store-plot', action='store_true',
           help='store plot in results/ directory')
-    p.add('-eshow', '--show-end', action='store_true', 
+    p.add('-eshow', '--show-end', action='store_true',
           help='show plot of end state')
 
     args = p.parse_args()
