@@ -25,7 +25,7 @@ PROJECT_DIR = os.path.dirname(CURRENT_DIR)
 OUTPUT_DIR = os.path.join(PROJECT_DIR, "results")
 
 
-
+def depth_func(x, y):
     return 15 + 5 * x
 
 
