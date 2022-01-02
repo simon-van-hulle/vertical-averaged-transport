@@ -25,7 +25,7 @@ PROJECT_DIR = os.path.dirname(CURRENT_DIR)
 OUTPUT_DIR = os.path.join(PROJECT_DIR, "results")
 
 
-def depth_func(x, y=None):
+
     return 15 + 5 * x
 
 
@@ -372,11 +372,11 @@ def parse_configuration():
           help='numerical scheme for the simulation')
     p.add('-a', '--make-animation', action='store_true',
           help='make animation or not')
-    p.add('-pshowall', '--show-all', action='store_true',
+    p.add('-psa', '--show-all', action='store_true',
           help='show all plots and block excecution')
-    p.add('-pstore', '--store-plot', action='store_true',
+    p.add('-ps', '--store-plot', action='store_true',
           help='store plot in results/ directory')
-    p.add('-eshow', '--show-end', action='store_true',
+    p.add('-es', '--show-end', action='store_true',
           help='show plot of end state')
 
     args = p.parse_args()

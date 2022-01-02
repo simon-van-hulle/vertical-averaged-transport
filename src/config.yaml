@@ -1,6 +1,6 @@
-num-particles:  1000
-num-steps: 10000
-end-time: 1000
+num-particles: 10000
+num-steps: 1000
+end-time: 3
 scheme: milstein
 
 make-animation: False
