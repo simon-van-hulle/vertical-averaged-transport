@@ -4,7 +4,8 @@ import matplotlib.animation as anim
 import util
 
 grid_res = 25
-n_particles = 5000
+it_at_once = 100
+n_particles = 25000
 
 dt = 0.001
 t_final = 10
@@ -38,10 +39,11 @@ def advance_milstein(particles):
     particles += 0.5 * np.sqrt(2 * D(particles)) * diff_sqrt2D(particles) * (dW() * dW() - dt)
 
 def animate(i):
-    advance_euler(particles)
+    for i in range(it_at_once):
+        advance_euler(particles)
     scatterplt.set_offsets(particles)
     axs[1].clear()
-    axs[1].contour(X, Y, util.particle_density(X, Y, particles, 0.1))
+    axs[1].contour(X, Y, util.particle_density(X, Y, particles, 0.025))
 
 particles = 0.5 * np.ones((n_particles, 2)) # Each row is a particle, column 0 is x pos, column 1 is y pos
 
