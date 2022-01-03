@@ -194,7 +194,7 @@ class Particles:
         self.history_y.append(self.pos_y.copy())
 
         # TODO: How to do this with numpy arrays?
-        self.correct_coords()
+        # self.correct_coords()
 
     def scatter(self, color='r'):
         """Scatter plot all of the particles at their current position
