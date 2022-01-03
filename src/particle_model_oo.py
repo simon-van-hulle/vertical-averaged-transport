@@ -30,19 +30,12 @@ def depth_func(x, y):
 
 
 def dispersion_coeffs(x, y):
-    """
-    Returns a list of dispersion coefficients (arrays) for all input locations
-    """
     Dx = 1 + np.cos(np.pi * x)
     Dy = 1 + np.cos(np.pi * y)
     return [Dx, Dy]
 
 
 def dispersion_der(x, y):
-    """
-    Returns the dispersion coefficient derivatives
-    :return: list of dispersion coefficient derivatives [dDx/dx, dDy/dy]
-    """
     dDxdx = - np.pi * np.sin(np.pi * x)
     dDydy = - np.pi * np.cos(np.pi * y)
     return [dDxdx, dDydy]
@@ -52,8 +45,6 @@ def depth_avgd_disp_der(x, y):
     """
     Equation term with derivative and division by H
     $\dfrac{1}{H}\dfrac{\partial(HDx)}{\partial x}$ (and equivalent for y)
-
-    :return: list of the derivative terms [d(HDx)/dx/H, d(HDy)/dy/H]
     """
     depth = depth_func(x, y)
     x_comp = 5 * (1 + np.cos(np.pi * x) - np.pi * (3 + x) * np.sin(np.pi * x))
@@ -62,9 +53,6 @@ def depth_avgd_disp_der(x, y):
 
 
 def velocities(x, y):
-    """
-    Calculate water velocity at specified location(s)
-    """
     depth = depth_func(x, y)
     u = - y * (1 - x * x) / depth
     v = x * (1 - y * y) / depth
@@ -72,9 +60,6 @@ def velocities(x, y):
 
 
 def velocities_der(x, y):
-    """
-    Calculate water velocity at specified location(s)
-    """
     depth = depth_func(x, y)
     dudx = 2 * x * y / depth
     dvdx = -2 * x * y / depth
@@ -146,16 +131,12 @@ class Particles:
         self.depth_avgd_disp = None
 
     def calc_dispersion(self):
-        """
-        Calculate the dispersion coefficient in x- and y-directions
-        """
         self.dispersion = dispersion_coeffs(self.pos_x, self.pos_y)
         self.dispersion_der = dispersion_der(self.pos_x, self.pos_y)
         self.depth_avgd_disp = depth_avgd_disp_der(self.pos_x, self.pos_y)
 
     def correct_coords(self):
         """
-        Adjust the positions to make sure they are in the predfined domain
         TODO: Make this better! This is very very preliminary.
         """
         for i in range(self.size):
@@ -191,8 +172,7 @@ class Particles:
         return dx, dy
 
     def perform_step(self, current_step, dt, scheme="euler"):
-        """
-        Perform one numerical step in the scheme of choice
+        """Perform one numerical step in the scheme of choice
         """
         self.calc_dispersion()
         wiener_step_x = self.wiener_x.get_step(current_step)
