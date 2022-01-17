@@ -8,19 +8,21 @@ For this reason, the naming does not really add up.
 I will not take the time to fix this, since the output works as expected.
 """
 
-import numpy as np
-import matplotlib.pyplot as plt
-import os
 import argparse
+import logging
+import os
 
+import matplotlib.pyplot as plt
+import numpy as np
 
-def log(*args, **kwargs):
-    print(*args, **kwargs)
+import helpers as h
+
+logger = h.easy_logger(__name__, logging.INFO)
 
 
 def readErrors(fileName):
 
-    log(f"\nReading errors from file {fileName}")
+    logger.info(f"\nReading errors from file {fileName}")
 
     if os.path.exists(fileName):
         data = np.genfromtxt(fileName, comments='#').T
@@ -35,8 +37,8 @@ def readErrors(fileName):
                     break
 
     else:
-        log(f"\t[ERROR]: Coefficient file {fileName} not present.")
-        log(f"\t[ERROR]: Check the error directory!\n")
+        logger.info(f"\t[ERROR]: Coefficient file {fileName} not present.")
+        logger.info(f"\t[ERROR]: Check the error directory!\n")
         return None, None, None
 
     return times, coeffs, coeffNames
@@ -55,20 +57,35 @@ def plotErrors(time, coeffs, coeffNames, names, args):
 
     for name in names:
         if name in coeffNames:
-            log(f"\tPlotting {name}")
-            plt.loglog(time, coeffs[coeffNames.index(name), xmin:], label=name)
+            logger.info(f"\tPlotting {name}")
+
+            if (args.scale == 'linear'):
+                plt.plot(time, coeffs[coeffNames.index(name), xmin:], ':o',
+                            label=name)
+
+            elif (args.scale == 'log'):
+                plt.loglog(time, coeffs[coeffNames.index(name), xmin:], ':o',
+                           label=name)
+
             numPlots += 1
 
     if numPlots > 0:
         ax = plt.gca()
-        ax.set_xlabel(r"$\log(dt)$")
-        ax.set_ylabel(r"$\log(Error)$")
+        xlabel = rf"$\Delta t$"
+        ylabel = "Error"
+
+        if args.scale == 'log':
+            xlabel = rf"$\log(\Delta t)$"
+            ylabel = rf"$\log(Error)$"
+
+        ax.set_xlabel(xlabel)
+        ax.set_ylabel(ylabel)
         ax.axes.autoscale()
         plt.ylim([args.ymin, args.ymax])
         plt.legend()
 
     else:
-        log("\tNothing to plot")
+        logger.info("\tNothing to plot")
 
     return numPlots
 
@@ -91,10 +108,10 @@ def plotFiles(args):
                                args)
 
     if numPlots < len(names or [None]):
-        log(f"\n[WARNING]: Not all of your specified errors were found.")
-        log(f"The following errors are included in the files:")
+        logger.warning(f"Not all of your specified errors were found.")
+        logger.warning(f"The following errors are included in the files:")
         for coeffName in allCoeffNames:
-            log(f"\t- {coeffName}")
+            logger.info(f"\t- {coeffName}")
 
     return numPlots
 
@@ -115,6 +132,8 @@ def parse_args():
                         help='Minimum value for the errors')
     parser.add_argument('--ymax', metavar='', type=float, default=None,
                         help='Maximum value for the errors')
+    parser.add_argument('--scale', metavar='', type=str, default='linear',
+                        choices={'linear', 'log'}, help='Scale for the axes')
     parser.add_argument('-o', '--outFile', metavar='',
                         help="File name for output image")
 
@@ -137,7 +156,7 @@ def plotTerminalInput():
         plt.tight_layout()
         plt.show()
 
-    log("\n\nDone.\n")
+    logger.info("\n\nDone.\n")
 
 
 if __name__ == '__main__':

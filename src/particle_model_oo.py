@@ -277,7 +277,7 @@ class ParticleSimulation():
         if not file_name:
             file_name = f"particles-{self.standard_title()}"
 
-        if store_plot or not show_plot:
+        if store_plot:
             file_name = out_file(file_name)
             plt.savefig(file_name)
             logger.info(
@@ -390,109 +390,11 @@ def parse_configuration():
     return args
 
 
-def convergence_tests(config, refinements):
-    np.seterr(all='raise')
-
-    simul = ParticleSimulation(config)
-    txt_buffer = 20
-
-    xy_best = None
-    dts = []
-    s_errors = []
-    w_1_errors = []
-    w_sq_errors = []
-
-    convg_f_name = out_file("convg_" + simul.standard_title() + ".txt")
-    convg_f = open(convg_f_name, "w")
-    convg_f.write(f"# Convergence data for {simul.standard_title()}\n")
-    convg_f.write(f"# "
-                  f"{'dt':{txt_buffer}s}"
-                  f"{'strong':{txt_buffer}s}"
-                  f"{'weak($h(X)=X$)':{txt_buffer}s}"
-                  f"{'weak($h(X)=X^2$)':{txt_buffer}s}"
-                  f"\n")
-
-    for i in range(refinements + 1):
-        simul.set_steps_per_it(2 * i + 1)
-        dt = simul.dt()
-
-        try:
-            xy_final = simul.run(config)
-        except:
-            logger.warning("dt IS TOO LARGE. DOES NOT CONVERGE")
-            logger.warning("PREVENTING FURTHER SIMULATIONS")
-            break
-
-        if i == 0:
-            xy_best = xy_final
-
-        elif np.all(xy_final):
-            s_error = h.strong_convg_f(xy_best, xy_final)
-            w_1_error = h.weak_convg_f(xy_best, xy_final, lambda a: a)
-            w_sq_error = h.weak_convg_f(xy_best, xy_final, lambda a: a * a)
-
-            logger.info(f"Relative strong convergence error : {s_error}")
-            logger.info(f"Relative weak error (h(x) = x)    : {w_1_error}")
-            logger.info(f"Relative weak error (h(x) = x^2)  : {w_sq_error}")
-
-            dts.append(dt)
-            s_errors.append(s_error)
-            w_1_errors.append(w_1_error)
-            w_sq_errors.append(w_sq_error)
-
-            logger.info(f"dt         : {dt}")
-            logger.info(f"s_error    : {s_error}")
-            logger.info(f"w_1_error  : {w_1_error}")
-            logger.info(f"w_sq_error : {w_sq_error}")
-
-            convg_f.write(f"  "
-                          f"{dt:<{txt_buffer}f}"
-                          f"{s_error:<{txt_buffer}f}"
-                          f"{w_1_error:<{txt_buffer}f}"
-                          f"{w_sq_error:<{txt_buffer}f}"
-                          f"\n")
-
-    s_convg_pars, s_convg_sdevs = h.order_convg(dts, s_errors)
-    w_1_convg_pars, w_1_convg_sdevs = h.order_convg(dts, w_1_errors)
-    w_sq_convg_pars, w_sq_convg_sdevs = h.order_convg(dts, w_sq_errors)
-
-    s_convg_j_str = f"{s_convg_pars[0]:.3f} +- {s_convg_sdevs[0]:.3f}"
-    s_convg_k_str = f"{s_convg_pars[1]:.3f} +- {s_convg_sdevs[1]:.3f}"
-    w_1_convg_j_str = f"{w_1_convg_pars[0]:.3f} +- {w_1_convg_sdevs[0]:.3f}"
-    w_1_convg_k_str = f"{w_1_convg_pars[1]:.3f} +- {w_1_convg_sdevs[1]:.3f}"
-    w_sq_convg_j_str = f"{w_sq_convg_pars[0]:.3f} +- {w_sq_convg_sdevs[0]:.3f}"
-    w_sq_convg_k_str = f"{w_sq_convg_pars[1]:.3f} +- {w_sq_convg_sdevs[1]:.3f}"
-
-    convg_f.write(f"\n"
-                  f"# "
-                  f"{'Order j':<{txt_buffer}s}"
-                  f"{s_convg_j_str:<{txt_buffer}s}"
-                  f"{w_1_convg_j_str:<{txt_buffer}s}"
-                  f"{w_sq_convg_j_str:<{txt_buffer}s}"
-                  f"\n")
-
-    convg_f.write(f"# "
-                  f"{'Offset K':<{txt_buffer}s}"
-                  f"{s_convg_k_str:<{txt_buffer}s}"
-                  f"{w_1_convg_k_str:<{txt_buffer}s}"
-                  f"{w_sq_convg_k_str:<{txt_buffer}s}"
-                  f"\n")
-
-    convg_f.close()
-
-    # plt.figure()
-    # plt.loglog(dts, s_errors)
-    # plt.xlabel(r"$\log{(\Delta t)}$")
-    # plt.xlabel(r"$\log{E\{|X_t - X_n}|\}}}$")
-    # if config.store_plot:
-    #     title = out_file("strong_convg_" + simul.standard_title())
-    #     plt.savefig(title)
-
-
 if __name__ == "__main__":
     config = parse_configuration()
 
-    convergence_tests(config, 20)
+    simul = ParticleSimulation(config)
+    simul.run(config)
 
     if config.show_end:
         plt.show()

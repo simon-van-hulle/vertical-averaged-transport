@@ -9,7 +9,8 @@ import time
 import logging
 import numpy as np
 
-import scipy.optimize as spopt
+
+
 
 def easy_logger(name, level=logging.INFO):
     logger = logging.getLogger(name)
@@ -42,20 +43,3 @@ def timing(func):
     return wrapper
 
 
-
-def strong_convg_f(xy_best, xy_approx):
-    return np.linalg.norm(xy_best - xy_approx, axis=0).mean()
-
-
-def weak_convg_f(xy_best, xy_approx, h):
-    return np.linalg.norm((h(xy_best) - h(xy_approx)).mean(axis=1))
-
-
-def error_f(x, j, k):
-        return k * x ** j
-
-def order_convg(dts, errors):
-    popt, pcov = spopt.curve_fit(error_f, dts, errors)
-    stdevs = np.sqrt(np.diag(pcov))
-    res = errors - error_f(dts, *popt)
-    return popt, stdevs
