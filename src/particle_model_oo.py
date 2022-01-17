@@ -116,6 +116,7 @@ class WienerProcess:
     def plot(self):
         title = "Wiener Process"
         plt.figure(title)
+        plt.clf()
         plt.title(title)
         plt.plot(self._process)
 
@@ -204,6 +205,7 @@ class Particles:
     def scatter_plot(self, title=None):
         title = title or f"Particles - P{self._size} - {np.random.randint()}"
         plt.figure(title)
+        plt.clf()
         plt.title(title)
         self.scatter()
         plt.xlim([self._domain._xmin, self._domain._xmax])
@@ -268,20 +270,21 @@ class ParticleSimulation():
                                      self.dt(), self._scheme,)
         return 0
 
-    def plot_current(self, show_plot=False, store_plot=False, file_name=False):
+    def plot_current(self, show_plot=False, store_plot=False, img_name=False):
         plt.figure("Particle Distribution")
+        plt.clf()
         plt.xlim([self._domain._xmin, self._domain._xmax])
         plt.ylim([self._domain._ymin, self._domain._ymax])
         self._particles.scatter()
 
-        if not file_name:
-            file_name = f"particles-{self.standard_title()}"
+        if not img_name:
+            img_name = f"particles-{self.standard_title()}.png"
 
         if store_plot:
-            file_name = out_file(file_name)
-            plt.savefig(file_name)
-            logger.info(
-                f"Saved state plot at time {self._time:.2f} as {file_name}")
+            img_name = out_file(img_name)
+            plt.savefig(img_name)
+            logger.info(f"Saved state plot at time {self._time:.2f} as "
+                        f"{h.file_link(img_name)}")
 
         if show_plot:
             plt.show()
@@ -349,7 +352,7 @@ class ParticleSimulation():
         if file_name:
             animation.save(file_name)
             print("\n")
-            logger.info(f"Saved animation as {file_name}")
+            logger.info(f"Saved animation as {h.file_link(file_name)}")
 
         return animation
 

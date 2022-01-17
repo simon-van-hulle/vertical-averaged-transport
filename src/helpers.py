@@ -10,8 +10,6 @@ import logging
 import numpy as np
 
 
-
-
 def easy_logger(name, level=logging.INFO):
     logger = logging.getLogger(name)
     handler = logging.StreamHandler()
@@ -24,6 +22,10 @@ def easy_logger(name, level=logging.INFO):
 
 
 logger = easy_logger(__name__)
+
+
+def file_link(filename):
+    return f"file:{filename}"
 
 
 def timing(func):
@@ -41,5 +43,3 @@ def timing(func):
         print(separate)
         return result
     return wrapper
-
-

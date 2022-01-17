@@ -24,6 +24,9 @@ OUTPUT_DIR = os.path.join(PROJECT_DIR, "results")
 
 CONVG_PADDING = 20
 
+REFINEMENTS = 20
+REFINE_METHOD = 'exp'
+
 
 def strong_convg_f(xy_best, xy_approx):
     return np.linalg.norm(xy_best - xy_approx, axis=0).mean()
@@ -88,13 +91,14 @@ def convg_f_name(simul):
 
 
 def write_to_file(simul, dts, convg_list, filename):
-    logger.info(f"\n"
-                f"Finished convergence analysis\n"
-                f"Writing convergence report to {filename}.")
 
     with open(filename, "w") as convg_f:
         # WRITE HEADER
-        convg_f.write(f"# Convergence data for {simul.standard_title()}\n")
+        convg_f.write(f"# Convergence Analysis with parameters:\n"
+                      f"#   scheme              : {simul._scheme:s}\n"
+                      f"#   Final time T        : {simul._end_time:f}\n"
+                      f"#   Number of particles : {simul._num_particles}\n"
+                      f"#\n")
         convg_f.write(f"# {'dt':<{CONVG_PADDING}s}")
 
         for c in convg_list:
@@ -126,6 +130,10 @@ def write_to_file(simul, dts, convg_list, filename):
 
         convg_f.write("\n")
 
+    logger.info(f"\n"
+                f"Finished convergence analysis\n"
+                f"  Saved convergence report to {h.file_link(filename)}.\n\n"
+                f"  Visualise with the `plot_convergence` script.")
 
 def refine_func(i, method='linear'):
     if method == 'linear':
@@ -138,10 +146,12 @@ def summarise(name, value):
     logger.info(f"{name:<{2*CONVG_PADDING}s}: {value:<{CONVG_PADDING}f}")
 
 
-def convergence_tests(config, refinements = '5', refine_method='exp'):
+def convergence_tests(config, refinements='5', refine_method='exp'):
     np.seterr(all='raise')
 
-    logger.info(f"Convergence analysis with {refinements} dt steps.\n")
+    logger.info(f"Starting convergence analysis with\n"
+                f"  {refinements} dt refinements.\n"
+                f"  {refine_method} refinement is used.\n")
 
     simul = ParticleSimulation(config)
     filename = convg_f_name(simul)
@@ -186,11 +196,7 @@ def convergence_tests(config, refinements = '5', refine_method='exp'):
 
 if __name__ == "__main__":
     config = parse_configuration()
-
-    refinements = 20
-    refine_method = 'exp'
-
-    convergence_tests(config, refinements, refine_method)
+    convergence_tests(config, REFINEMENTS, REFINE_METHOD)
 
     if config.show_end:
         plt.show()

@@ -132,7 +132,7 @@ def parse_args():
                         help='Minimum value for the errors')
     parser.add_argument('--ymax', metavar='', type=float, default=None,
                         help='Maximum value for the errors')
-    parser.add_argument('--scale', metavar='', type=str, default='linear',
+    parser.add_argument('-s', '--scale', metavar='', type=str, default='linear',
                         choices={'linear', 'log'}, help='Scale for the axes')
     parser.add_argument('-o', '--outFile', metavar='',
                         help="File name for output image")
