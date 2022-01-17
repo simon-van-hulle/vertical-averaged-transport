@@ -7,12 +7,14 @@ Contains:
 
 import time
 import logging
+import numpy as np
 
 
 def easy_logger(name, level=logging.INFO):
     logger = logging.getLogger(name)
     handler = logging.StreamHandler()
-    formatter = logging.Formatter('%(name)-10s- %(levelname)-7s: %(message)s')
+    # formatter = logging.Formatter('%(name)-10s- %(levelname)-7s: %(message)s')
+    formatter = logging.Formatter('%(message)s')
     handler.setFormatter(formatter)
     logger.addHandler(handler)
     logger.setLevel(level)
@@ -20,6 +22,10 @@ def easy_logger(name, level=logging.INFO):
 
 
 logger = easy_logger(__name__)
+
+
+def file_link(filename):
+    return f"file:{filename}"
 
 
 def timing(func):
