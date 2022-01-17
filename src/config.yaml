@@ -9,5 +9,5 @@ end-time: 3
 scheme: euler
 
 make-animation: False
-store-plot: False
+store-plot: True
 show-end: False
