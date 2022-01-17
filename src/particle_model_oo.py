@@ -4,12 +4,15 @@
 A first, intuitive implementation.
 The code spits out results, but haven't checked anything (not reliable...)
 """
+from cProfile import run
 import os
 import sys
 
 import matplotlib.animation as anim
 import matplotlib.pyplot as plt
 import numpy as np
+import scipy as sp
+import scipy.stats as spstats
 
 import logging
 import enlighten
@@ -23,6 +26,10 @@ CURRENT_FILE = os.path.abspath(__file__)
 CURRENT_DIR = os.path.dirname(CURRENT_FILE)
 PROJECT_DIR = os.path.dirname(CURRENT_DIR)
 OUTPUT_DIR = os.path.join(PROJECT_DIR, "results")
+
+
+def out_file(name):
+    return os.path.join(OUTPUT_DIR, name)
 
 
 def depth_func(x, y):
@@ -75,88 +82,72 @@ def wiener_steps(dt, n_particles):
 
 class Domain:
     def __init__(self, xmin=-1, xmax=1, ymin=-1, ymax=1, min_factor=0.01):
-        self.xmin = xmin
-        self.xmax = xmax
-        self.ymin = ymin
-        self.ymax = ymax
-        self.minDx = min_factor * (self.xmax - self.xmin)
-        self.minDy = min_factor * (self.ymax - self.ymin)
+        self._xmin = xmin
+        self._xmax = xmax
+        self._ymin = ymin
+        self._ymax = ymax
 
 
 class WienerProcess:
     def __init__(self, n_steps, n_particles, dt):
-        self.dt = dt
-        self.n_steps = n_steps
-        self.n_particles = n_particles
-        self.wiener_steps = self.generate_steps()
-        self.process = self.get_process()
+        self._dt = dt
+        self._n_steps = n_steps
+        self._n_particles = n_particles
+        self._wiener_steps = self.generate_steps()
+        self._process = self.get_process()
 
     def generate_steps(self):
-        logger.info(f"Generating Wiener Proces with {self.n_steps} steps")
-        std_deviation = np.sqrt(self.dt)
-        shape = (self.n_steps, self.n_particles)
+        logger.info(f"Generating Wiener Proces with {self._n_steps} steps")
+        std_deviation = np.sqrt(self._dt)
+        shape = (self._n_steps, self._n_particles)
         steps = np.random.normal(0, std_deviation, shape)
         return steps
 
     def get_process(self):
-        wiener = np.zeros((self.n_steps, self.n_particles))
-        wiener[0] = self.wiener_steps[0]
-        for i, step in enumerate(self.wiener_steps[1:]):
+        wiener = np.zeros((self._n_steps, self._n_particles))
+        wiener[0] = self._wiener_steps[0]
+        for i, step in enumerate(self._wiener_steps[1:]):
             wiener[i] = wiener[i - 1] + step
         return wiener
 
-    def get_step(self, step_num):
-        return self.wiener_steps[step_num]
+    def get_step(self, step_num, steps_per_it):
+        return self._wiener_steps[step_num: (step_num + steps_per_it)].sum(axis=0)
 
     def plot(self):
         title = "Wiener Process"
         plt.figure(title)
         plt.title(title)
-        plt.plot(self.process)
+        plt.plot(self._process)
 
 
 class Particles:
     def __init__(self, N, wiener_x, wiener_y, domain=None, x=0.5, y=0.5):
-        self.size = N
-        self.domain = domain or Domain()
-        self.wiener_x = wiener_x
-        self.wiener_y = wiener_y
+        self._xy_init = [x, y]
+        self._size = N
+        self._domain = domain or Domain()
+        self._wiener_x = wiener_x
+        self._wiener_y = wiener_y
 
-        self.pos_x = x * np.ones(self.size)
-        self.pos_y = y * np.ones(self.size)
-        self.history_x = [self.pos_x.copy()]
-        self.history_y = [self.pos_y.copy()]
-        self.dispersion = None
-        self.dispersion_der = None
-        self.depth_avgd_disp = None
+        self._pos_x = x * np.ones(self._size)
+        self._pos_y = y * np.ones(self._size)
+        self._history_x = [self._pos_x.copy()]
+        self._history_y = [self._pos_y.copy()]
+        self._dispersion = None
+        self._dispersion_der = None
+        self._depth_avgd_disp = None
 
     def calc_dispersion(self):
-        self.dispersion = dispersion_coeffs(self.pos_x, self.pos_y)
-        self.dispersion_der = dispersion_der(self.pos_x, self.pos_y)
-        self.depth_avgd_disp = depth_avgd_disp_der(self.pos_x, self.pos_y)
-
-    def correct_coords(self):
-        """
-        TODO: Make this better! This is very very preliminary.
-        """
-        for i in range(self.size):
-            if self.pos_x[i] < self.domain.xmin:
-                self.pos_x[i] = self.domain.xmin + self.domain.minDx
-            elif self.pos_x[i] > self.domain.xmax:
-                self.pos_x[i] = self.domain.xmax - self.domain.minDx
-
-            if self.pos_y[i] < self.domain.ymin:
-                self.pos_y[i] = self.domain.ymin + self.domain.minDy
-            elif self.pos_y[i] > self.domain.ymax:
-                self.pos_y[i] = self.domain.ymax - self.domain.minDy
+        self._dispersion = dispersion_coeffs(self._pos_x, self._pos_y)
+        self._dispersion_der = dispersion_der(self._pos_x, self._pos_y)
+        self._depth_avgd_disp = depth_avgd_disp_der(self._pos_x, self._pos_y)
 
     def euler_step(self, wiener_step_x, wiener_step_y, dt):
-        u, v = velocities(self.pos_x, self.pos_y)
+        u, v = velocities(self._pos_x, self._pos_y)
 
-        fx = u + self.depth_avgd_disp[0]
-        fy = v + self.depth_avgd_disp[1]
-        gx = np.sqrt(2 * self.dispersion[0])
-        gy = np.sqrt(2 * self.dispersion[1])
+        fx = u + self._depth_avgd_disp[0]
+        fy = v + self._depth_avgd_disp[1]
+        gx = np.sqrt(2 * self._dispersion[0])
+        gy = np.sqrt(2 * self._dispersion[1])
 
         dx = fx * dt + gx * wiener_step_x
         dy = fy * dt + gy * wiener_step_y
@@ -166,48 +157,57 @@ class Particles:
     def milstein_step(self, wiener_step_x, wiener_step_y, dt):
         euler_dx, euler_dy = self.euler_step(wiener_step_x, wiener_step_y, dt)
 
-        dx = euler_dx + self.dispersion_der[0] / 2 * (wiener_step_x ** 2 - dt)
-        dy = euler_dy + self.dispersion_der[1] / 2 * (wiener_step_y ** 2 - dt)
+        dx = euler_dx + self._dispersion_der[0] / 2 * (wiener_step_x ** 2 - dt)
+        dy = euler_dy + self._dispersion_der[1] / 2 * (wiener_step_y ** 2 - dt)
 
         return dx, dy
 
-    def perform_step(self, current_step, dt, scheme="euler"):
+    def perform_step(self, current_step, steps_per_it, dt, scheme="euler",):
         """Perform one numerical step in the scheme of choice
         """
         self.calc_dispersion()
-        wiener_step_x = self.wiener_x.get_step(current_step)
-        wiener_step_y = self.wiener_y.get_step(current_step)
+        wiener_step_x = self._wiener_x.get_step(current_step, steps_per_it)
+        wiener_step_y = self._wiener_y.get_step(current_step, steps_per_it)
 
         if scheme == "euler":
             dx, dy = self.euler_step(wiener_step_x, wiener_step_y, dt)
+
         elif scheme == "milstein":
             dx, dy = self.milstein_step(wiener_step_x, wiener_step_y, dt)
+
         else:
             print("\n")
             logger.critical(f"The {scheme} scheme is not implemented.")
             sys.exit(f"\tExiting...")
 
-        self.pos_x += dx
-        self.pos_y += dy
+        self._pos_x += dx
+        self._pos_y += dy
 
-        self.history_x.append(self.pos_x.copy())
-        self.history_y.append(self.pos_y.copy())
+        self._history_x.append(self._pos_x.copy())
+        self._history_y.append(self._pos_y.copy())
 
-        # TODO: How to do this with numpy arrays?
-        # self.correct_coords()
+    def reset(self):
+        self._pos_x = 0 * self._pos_x + self._xy_init[0]
+        self._pos_y = 0 * self._pos_y + self._xy_init[1]
+        self._history_x = [self._pos_x.copy()]
+        self._history_y = [self._pos_y.copy()]
+        return 0
 
     def scatter(self, color='r'):
         """Scatter plot all of the particles at their current position
         """
-        plt.scatter(self.pos_x, self.pos_y, color=color, s=20)
+        xy = np.vstack([self._pos_x, self._pos_y])
+        z = spstats.gaussian_kde(xy)(xy)
+
+        plt.scatter(self._pos_x, self._pos_y, c=z, s=20)
 
     def scatter_plot(self, title=None):
-        title = title or f"Particles - P{self.size}"
+        title = title or f"Particles - P{self._size} - {np.random.randint()}"
         plt.figure(title)
         plt.title(title)
         self.scatter()
-        plt.xlim([self.domain.xmin, self.domain.xmax])
-        plt.ylim([self.domain.ymin, self.domain.ymax])
+        plt.xlim([self._domain._xmin, self._domain._xmax])
+        plt.ylim([self._domain._ymin, self._domain._ymax])
         plt.xlabel(r"$x$")
         plt.ylabel(r"$y$")
 
@@ -216,61 +216,69 @@ class ParticleSimulation():
     def __init__(self, config):
         c = config
         self._num_particles = c.num_particles
-        self._num_steps = c.num_steps
+        self._total_steps = c.total_steps
         self._end_time = c.end_time
-        self._dt = self.calc_dt()
+        self._steps_per_it = 1
         self._time = 0
         self._current_step = 0
         self._scheme = c.scheme
 
-        self.domain = Domain()
-        self.wiener_x = WienerProcess(c.num_steps, c.num_particles, self._dt)
-        self.wiener_y = WienerProcess(c.num_steps, c.num_particles, self._dt)
-        self.particles = Particles(c.num_particles, self.wiener_x,
-                                   self.wiener_y, self.domain)
+        self._domain = Domain()
+        self._wiener_x = WienerProcess(c.total_steps, c.num_particles,
+                                       self.dt())
+        self._wiener_y = WienerProcess(c.total_steps, c.num_particles,
+                                       self.dt())
+        self._particles = Particles(c.num_particles, self._wiener_x,
+                                    self._wiener_y, self._domain)
 
     def standard_title(self):
         title = f"{self._scheme}-P{self._num_particles}"
-        title += f"-S{self._num_steps}-T{self._time:.0f}"
+        title += f"-S{self.num_steps()}-T{self._time:.0f}"
         return title
 
-    # Calculating dependent variables.
-    def calc_dt(self):
-        return self._end_time / self._num_steps
+    def num_steps(self):
+        return self._total_steps // self._steps_per_it
+
+    def dt(self):
+        return self._end_time / self.num_steps()
 
     # Setters for protected variables
     def set_end_time(self, end_time):
         self._end_time = end_time
-        self._dt = self.calc_dt()
+        return 0
 
-    def set_num_steps(self, n_steps):
-        self._num_steps = n_steps
-        self._dt = self.calc_dt()
+    def set_total_steps(self, n_steps):
+        self._total_steps = n_steps
+        return 0
+
+    def set_steps_per_it(self, steps_per_it):
+        self._steps_per_it = steps_per_it
+        return 0
 
     def set_num_particles(self, n_particles):
         self._num_particles = n_particles
+        return 0
 
     # Member functions
     def step(self):
-        """Perform one step for all the particles with the numerical scheme of
-        choice.
+        """One step for all particles with the numerical scheme of choice.
         """
-        status = (self._current_step + 1) / self._num_steps * 100
-        logger.debug(f"Simulation status: {status:4.1f} % done")
-        self._time += self._dt
-        self.particles.perform_step(self._current_step, self._dt, self._scheme)
+        self._time += self.dt()
+        self._particles.perform_step(self._current_step, self._steps_per_it,
+                                     self.dt(), self._scheme,)
+        return 0
 
     def plot_current(self, show_plot=False, store_plot=False, file_name=False):
         plt.figure("Particle Distribution")
-        plt.xlim([self.domain.xmin, self.domain.xmax])
-        plt.ylim([self.domain.ymin, self.domain.ymax])
-        self.particles.scatter()
+        plt.xlim([self._domain._xmin, self._domain._xmax])
+        plt.ylim([self._domain._ymin, self._domain._ymax])
+        self._particles.scatter()
 
         if not file_name:
             file_name = f"particles-{self.standard_title()}"
 
         if store_plot or not show_plot:
-            file_name = os.path.join(OUTPUT_DIR, file_name)
+            file_name = out_file(file_name)
             plt.savefig(file_name)
             logger.info(
                 f"Saved state plot at time {self._time:.2f} as {file_name}")
@@ -278,14 +286,22 @@ class ParticleSimulation():
         if show_plot:
             plt.show()
 
-    def run(self, c):
+        return 0
+
+    def run(self, config):
+
+        self.reset()
         c = config
-        logger.info(f"Starting particle model run with {self._scheme} scheme")
-        run_progress_bar = enlighten.Counter(total=self._num_steps,
+
+        logger.info(f"\nStarting particle model run with {self._scheme} "
+                    f"scheme and the Wiener process in {self.num_steps()} "
+                    f"steps.")
+        run_progress_bar = enlighten.Counter(total=self.num_steps(),
                                              desc='Particle Model Run',
                                              min_delta=1,
                                              unit='ticks')
-        for self._current_step in range(self._num_steps):
+
+        for self._current_step in range(0, self._total_steps, self._steps_per_it):
             self.step()
             run_progress_bar.update()
 
@@ -296,37 +312,39 @@ class ParticleSimulation():
         if c.make_animation:
             self.particleAnimation()
 
+        return np.array([self._particles._pos_x, self._particles._pos_y])
+
     def particleAnimation(self):
         logger.info("Starting Animation")
-        animation_progress_bar = enlighten.Counter(total=self._num_steps,
+        animation_progress_bar = enlighten.Counter(total=self.num_steps(),
                                                    desc='Generating Animation',
                                                    min_delta=1,
                                                    unit='ticks')
 
         file_name = f"animation-{self.standard_title()}.mp4"
-        file_name = os.path.join(OUTPUT_DIR, file_name)
+        file_name = out_file(file_name)
 
-        particles = self.particles
+        particles = self._particles
 
-        xData = particles.history_x[0]
-        yData = particles.history_y[0]
+        xData = particles._history_x[0]
+        yData = particles._history_y[0]
 
         fig, ax = plt.subplots()
         ln = ax.scatter(xData, yData, color='r', s=5)
 
         def update(frame):
-            xData = particles.history_x[frame]
-            yData = particles.history_y[frame]
+            xData = particles._history_x[frame]
+            yData = particles._history_y[frame]
 
             ln.set_offsets(np.vstack((xData, yData)).T)
             animation_progress_bar.update()
             return ln
 
         fig.tight_layout()
-        animation = anim.FuncAnimation(fig, update, frames=self._num_steps,
+        animation = anim.FuncAnimation(fig, update, frames=self.num_steps(),
                                        interval=200)
-        ax.set_xlim([self.domain.xmin, self.domain.xmax])
-        ax.set_ylim([self.domain.ymin, self.domain.ymax])
+        ax.set_xlim([self._domain._xmin, self._domain._xmax])
+        ax.set_ylim([self._domain._ymin, self._domain._ymax])
 
         if file_name:
             animation.save(file_name)
@@ -334,6 +352,12 @@ class ParticleSimulation():
             logger.info(f"Saved animation as {file_name}")
 
         return animation
+
+    def reset(self):
+        self._time = 0
+        self._current_step = 0
+        self._particles.reset()
+        return 0
 
 
 def parse_configuration():
@@ -344,7 +368,7 @@ def parse_configuration():
           help='config file path')
     p.add('-p', '--num-particles', type=int, default=1000, metavar='',
           help='number of particles in the simulation')
-    p.add('-st', '--num-steps', type=int, default=1000, metavar='',
+    p.add('-st', '--total-steps', type=int, default=1000, metavar='',
           help='number of numerical steps in the simulation')
     p.add('-t', '--end-time', type=int, default=1000, metavar='',
           help='time (seconds) to stop the simulation')
@@ -366,10 +390,109 @@ def parse_configuration():
     return args
 
 
+def convergence_tests(config, refinements):
+    np.seterr(all='raise')
+
+    simul = ParticleSimulation(config)
+    txt_buffer = 20
+
+    xy_best = None
+    dts = []
+    s_errors = []
+    w_1_errors = []
+    w_sq_errors = []
+
+    convg_f_name = out_file("convg_" + simul.standard_title() + ".txt")
+    convg_f = open(convg_f_name, "w")
+    convg_f.write(f"# Convergence data for {simul.standard_title()}\n")
+    convg_f.write(f"# "
+                  f"{'dt':{txt_buffer}s}"
+                  f"{'strong':{txt_buffer}s}"
+                  f"{'weak($h(X)=X$)':{txt_buffer}s}"
+                  f"{'weak($h(X)=X^2$)':{txt_buffer}s}"
+                  f"\n")
+
+    for i in range(refinements + 1):
+        simul.set_steps_per_it(2 * i + 1)
+        dt = simul.dt()
+
+        try:
+            xy_final = simul.run(config)
+        except:
+            logger.warning("dt IS TOO LARGE. DOES NOT CONVERGE")
+            logger.warning("PREVENTING FURTHER SIMULATIONS")
+            break
+
+        if i == 0:
+            xy_best = xy_final
+
+        elif np.all(xy_final):
+            s_error = h.strong_convg_f(xy_best, xy_final)
+            w_1_error = h.weak_convg_f(xy_best, xy_final, lambda a: a)
+            w_sq_error = h.weak_convg_f(xy_best, xy_final, lambda a: a * a)
+
+            logger.info(f"Relative strong convergence error : {s_error}")
+            logger.info(f"Relative weak error (h(x) = x)    : {w_1_error}")
+            logger.info(f"Relative weak error (h(x) = x^2)  : {w_sq_error}")
+
+            dts.append(dt)
+            s_errors.append(s_error)
+            w_1_errors.append(w_1_error)
+            w_sq_errors.append(w_sq_error)
+
+            logger.info(f"dt         : {dt}")
+            logger.info(f"s_error    : {s_error}")
+            logger.info(f"w_1_error  : {w_1_error}")
+            logger.info(f"w_sq_error : {w_sq_error}")
+
+            convg_f.write(f"  "
+                          f"{dt:<{txt_buffer}f}"
+                          f"{s_error:<{txt_buffer}f}"
+                          f"{w_1_error:<{txt_buffer}f}"
+                          f"{w_sq_error:<{txt_buffer}f}"
+                          f"\n")
+
+    s_convg_pars, s_convg_sdevs = h.order_convg(dts, s_errors)
+    w_1_convg_pars, w_1_convg_sdevs = h.order_convg(dts, w_1_errors)
+    w_sq_convg_pars, w_sq_convg_sdevs = h.order_convg(dts, w_sq_errors)
+
+    s_convg_j_str = f"{s_convg_pars[0]:.3f} +- {s_convg_sdevs[0]:.3f}"
+    s_convg_k_str = f"{s_convg_pars[1]:.3f} +- {s_convg_sdevs[1]:.3f}"
+    w_1_convg_j_str = f"{w_1_convg_pars[0]:.3f} +- {w_1_convg_sdevs[0]:.3f}"
+    w_1_convg_k_str = f"{w_1_convg_pars[1]:.3f} +- {w_1_convg_sdevs[1]:.3f}"
+    w_sq_convg_j_str = f"{w_sq_convg_pars[0]:.3f} +- {w_sq_convg_sdevs[0]:.3f}"
+    w_sq_convg_k_str = f"{w_sq_convg_pars[1]:.3f} +- {w_sq_convg_sdevs[1]:.3f}"
+
+    convg_f.write(f"\n"
+                  f"# "
+                  f"{'Order j':<{txt_buffer}s}"
+                  f"{s_convg_j_str:<{txt_buffer}s}"
+                  f"{w_1_convg_j_str:<{txt_buffer}s}"
+                  f"{w_sq_convg_j_str:<{txt_buffer}s}"
+                  f"\n")
+
+    convg_f.write(f"# "
+                  f"{'Offset K':<{txt_buffer}s}"
+                  f"{s_convg_k_str:<{txt_buffer}s}"
+                  f"{w_1_convg_k_str:<{txt_buffer}s}"
+                  f"{w_sq_convg_k_str:<{txt_buffer}s}"
+                  f"\n")
+
+    convg_f.close()
+
+    # plt.figure()
+    # plt.loglog(dts, s_errors)
+    # plt.xlabel(r"$\log{(\Delta t)}$")
+    # plt.xlabel(r"$\log{E\{|X_t - X_n}|\}}}$")
+    # if config.store_plot:
+    #     title = out_file("strong_convg_" + simul.standard_title())
+    #     plt.savefig(title)
+
+
 if __name__ == "__main__":
     config = parse_configuration()
-    simul = ParticleSimulation(config)
-    simul.run(config)
+
+    convergence_tests(config, 20)
 
     if config.show_end:
         plt.show()
