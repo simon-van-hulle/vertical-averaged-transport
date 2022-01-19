@@ -13,7 +13,7 @@ pip3 install -r requirements.txt
 ```
 
 ## Usage
-Add usage
+
 
 ## Authors
 * Elias Bögel (5080894)

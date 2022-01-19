@@ -44,7 +44,7 @@ def dispersion_coeffs(x, y):
 
 def dispersion_der(x, y):
     dDxdx = - np.pi * np.sin(np.pi * x)
-    dDydy = - np.pi * np.cos(np.pi * y)
+    dDydy = - np.pi * np.sin(np.pi * y)
     return [dDxdx, dDydy]
 
 
@@ -64,20 +64,6 @@ def velocities(x, y):
     u = - y * (1 - x * x) / depth
     v = x * (1 - y * y) / depth
     return u, v
-
-
-def velocities_der(x, y):
-    depth = depth_func(x, y)
-    dudx = 2 * x * y / depth
-    dvdx = -2 * x * y / depth
-    return dudx, dvdx
-
-
-def wiener_steps(dt, n_particles):
-    """
-    $W_{t+\Delta t} - W_{t} = N(0, \Delta t)$
-    """
-    return np.random.normal(0, np.sqrt(dt), n_particles)
 
 
 class Domain:
@@ -163,7 +149,8 @@ class Particles:
 
         return dx, dy
 
-    def perform_step(self, current_step, steps_per_it, dt, scheme="euler",):
+    def perform_step(self, current_step, steps_per_it, dt, scheme="euler",
+                     store_history=False):
         """Perform one numerical step in the scheme of choice
         """
         self.calc_dispersion()
@@ -184,8 +171,9 @@ class Particles:
         self._pos_x += dx
         self._pos_y += dy
 
-        self._history_x.append(self._pos_x.copy())
-        self._history_y.append(self._pos_y.copy())
+        if store_history:
+            self._history_x.append(self._pos_x.copy())
+            self._history_y.append(self._pos_y.copy())
 
     def reset(self):
         self._pos_x = 0 * self._pos_x + self._xy_init[0]
@@ -201,22 +189,13 @@ class Particles:
         z = spstats.gaussian_kde(xy)(xy)
 
         plt.scatter(self._pos_x, self._pos_y, c=z, s=20)
-
-    def scatter_plot(self, title=None):
-        title = title or f"Particles - P{self._size} - {np.random.randint()}"
-        plt.figure(title)
-        plt.clf()
-        plt.title(title)
-        self.scatter()
-        plt.xlim([self._domain._xmin, self._domain._xmax])
-        plt.ylim([self._domain._ymin, self._domain._ymax])
-        plt.xlabel(r"$x$")
-        plt.ylabel(r"$y$")
+        plt.colorbar(orientation='vertical', label="Probability Density")
 
 
 class ParticleSimulation():
     def __init__(self, config):
         c = config
+        self.config = config
         self._num_particles = c.num_particles
         self._total_steps = c.total_steps
         self._end_time = c.end_time
@@ -267,15 +246,23 @@ class ParticleSimulation():
         """
         self._time += self.dt()
         self._particles.perform_step(self._current_step, self._steps_per_it,
-                                     self.dt(), self._scheme,)
+                                     self.dt(), self._scheme,
+                                     self.config.make_animation)
         return 0
 
     def plot_current(self, show_plot=False, store_plot=False, img_name=False):
         plt.figure("Particle Distribution")
         plt.clf()
+
+        self._particles.scatter()
+        plt.suptitle(f"Particle Distribution - {self._scheme.capitalize()}",
+                     weight='bold', fontsize=16)
+        plt.title(rf"{self._num_particles} particles $-$ $\Delta t$"
+                  rf" = {self.dt()} $-$ T = {self._time:.1f}", fontsize=11)
         plt.xlim([self._domain._xmin, self._domain._xmax])
         plt.ylim([self._domain._ymin, self._domain._ymax])
-        self._particles.scatter()
+        plt.xlabel(r"$x$")
+        plt.ylabel(r"$y$")
 
         if not img_name:
             img_name = f"particles-{self.standard_title()}.png"
@@ -291,10 +278,9 @@ class ParticleSimulation():
 
         return 0
 
-    def run(self, config):
-
+    def run(self):
         self.reset()
-        c = config
+        c = self.config
 
         logger.info(f"\nStarting particle model run with {self._scheme} "
                     f"scheme and the Wiener process in {self.num_steps()} "
@@ -310,7 +296,8 @@ class ParticleSimulation():
 
         logger.info("Finished particle model run")
 
-        self.plot_current(show_plot=c.show_all, store_plot=c.store_plot)
+        if c.show_all or c.store_plot:
+            self.plot_current(show_plot=c.show_all, store_plot=c.store_plot)
 
         if c.make_animation:
             self.particleAnimation()
@@ -397,7 +384,7 @@ if __name__ == "__main__":
     config = parse_configuration()
 
     simul = ParticleSimulation(config)
-    simul.run(config)
+    simul.run()
 
     if config.show_end:
         plt.show()
