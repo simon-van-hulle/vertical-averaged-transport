@@ -1,16 +1,18 @@
 num-particles: 10000
 
+total-steps: 40000
 # total-steps: 32768
 # total-steps: 28672
-total-steps: 24576
+# total-steps: 24576
 # total-steps: 22528
 # total-steps: 16384
 # total-steps: 8192
 
-end-time: 3
+end-time: 20
 # scheme: euler
 scheme: milstein
 
 make-animation: False
-store-plot: True
+store-plot: False
+# store-plot: True
 show-end: False
