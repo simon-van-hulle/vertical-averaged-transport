@@ -11,10 +11,12 @@ I will not take the time to fix this, since the output works as expected.
 import argparse
 import logging
 import os
+import re
 
 import matplotlib.pyplot as plt
 import numpy as np
 
+import convergence as c
 import helpers as h
 
 logger = h.easy_logger(__name__, logging.INFO)
@@ -22,7 +24,7 @@ logger = h.easy_logger(__name__, logging.INFO)
 
 def readErrors(fileName):
 
-    logger.info(f"\nReading errors from file {fileName}")
+    logger.info(f"\nReading errors from {h.file_link(fileName)}")
 
     if os.path.exists(fileName):
         data = np.genfromtxt(fileName, comments='#').T
@@ -44,6 +46,34 @@ def readErrors(fileName):
     return times, coeffs, coeffNames
 
 
+def readOrder_j_k(filename):
+    jLine = None
+    kLine = None
+
+    with open(filename) as f:
+        for line in f.readlines():
+            if line.startswith("# Order"):
+                jLine = line
+            elif line.startswith("# Factor"):
+                kLine = line
+
+    jVals = re.sub("[#\n\+-]", "", jLine).split()[2::2]
+    kVals = re.sub("[#\n\+-]", "", kLine).split()[2::2]
+
+    return map(float, jVals), map(float, kVals)
+
+def plotOrder(dts, jVals, kVals, args):
+    """
+    NOTE: This is a very delicate, first implementation. Very likely to break.
+    But works for what I need right now.
+    """
+    for j, k in zip(jVals, kVals):
+        if args.scale == 'linear':
+            plt.plot(dts, c.error_f(dts, j, k), 'k--')
+        elif args.scale == 'log':
+            plt.loglog(dts, c.error_f(dts, j, k), 'k--')
+
+
 def plotErrors(time, coeffs, coeffNames, names, args):
     numPlots = 0
     tmin = args.tmin
@@ -60,12 +90,12 @@ def plotErrors(time, coeffs, coeffNames, names, args):
             logger.info(f"\tPlotting {name}")
 
             if (args.scale == 'linear'):
-                plt.plot(time, coeffs[coeffNames.index(name), xmin:], ':o',
-                            label=name)
+                plt.plot(time, coeffs[coeffNames.index(name), xmin:], 'o',
+                         markersize=3, label=name)
 
             elif (args.scale == 'log'):
-                plt.loglog(time, coeffs[coeffNames.index(name), xmin:], ':o',
-                           label=name)
+                plt.loglog(time, coeffs[coeffNames.index(name), xmin:], 'o',
+                           markersize=3, label=name)
 
             numPlots += 1
 
@@ -99,6 +129,10 @@ def plotFiles(args):
 
     for fileName in files:
         times, coeffs, coeffNames = readErrors(fileName)
+        jVals, kVals = readOrder_j_k(fileName)
+        print(jVals, kVals)
+        dts = np.linspace(np.min(times), np.max(times), 100)
+        plotOrder(dts, jVals, kVals, args)
 
         if type(times) == type(None):
             break

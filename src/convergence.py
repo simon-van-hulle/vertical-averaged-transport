@@ -25,7 +25,7 @@ OUTPUT_DIR = os.path.join(PROJECT_DIR, "results")
 CONVG_PADDING = 20
 
 REFINEMENTS = 20
-REFINE_METHOD = 'exp'
+REFINE_METHOD = 'linear'
 
 
 def strong_convg_f(xy_best, xy_approx):
@@ -90,15 +90,16 @@ def convg_f_name(simul):
     return out_file("convg_" + simul.standard_title() + ".txt")
 
 
-def write_to_file(simul, dts, convg_list, filename):
-
-    with open(filename, "w") as convg_f:
-        # WRITE HEADER
+def write_header(filename, convg_list, simul):
+    with open(filename, "a") as convg_f:
         convg_f.write(f"# Convergence Analysis with parameters:\n"
                       f"#   scheme              : {simul._scheme:s}\n"
                       f"#   Final time T        : {simul._end_time:f}\n"
                       f"#   Number of particles : {simul._num_particles}\n"
+                      f"#\n"
+                      f"# NOTE: The most recent j and K data is on the bottom\n"
                       f"#\n")
+
         convg_f.write(f"# {'dt':<{CONVG_PADDING}s}")
 
         for c in convg_list:
@@ -106,7 +107,9 @@ def write_to_file(simul, dts, convg_list, filename):
 
         convg_f.write("\n")
 
-        # WRITE ALL ERRORS
+
+def write_errors(filename, dts, convg_list):
+    with open(filename, "a") as convg_f:
         for i, dt in enumerate(dts):
             convg_f.write(f"  {dt:<{CONVG_PADDING}f}")
 
@@ -116,7 +119,9 @@ def write_to_file(simul, dts, convg_list, filename):
             convg_f.write("\n")
         convg_f.write("\n")
 
-        # WRITE J AND K (CONVERGENCE)
+
+def write_j_k(filename, convg_list):
+    with open(filename, "a") as convg_f:
         convg_f.write(f"# {'Order j':<{CONVG_PADDING}s}")
 
         for c in convg_list:
@@ -128,12 +133,21 @@ def write_to_file(simul, dts, convg_list, filename):
         for c in convg_list:
             convg_f.write(f"{c.k_str:<{CONVG_PADDING}s}")
 
-        convg_f.write("\n")
+        convg_f.write("\n\n")
+
+
+def write_to_file(simul, dts, convg_list, filename):
+    if os.path.isfile(filename) == 0:
+        write_header(filename, convg_list, simul)
+
+    write_errors(filename, dts, convg_list)
+    write_j_k(filename, convg_list)
 
     logger.info(f"\n"
                 f"Finished convergence analysis\n"
                 f"  Saved convergence report to {h.file_link(filename)}.\n\n"
                 f"  Visualise with the `plot_convergence` script.")
+
 
 def refine_func(i, method='linear'):
     if method == 'linear':
@@ -170,7 +184,7 @@ def convergence_tests(config, refinements='5', refine_method='exp'):
         dt = simul.dt()
 
         try:
-            xy_final = simul.run(config)
+            xy_final = simul.run()
         except:
             logger.warning("dt IS TOO LARGE. DOES NOT CONVERGE")
             logger.warning("PREVENTING FURTHER SIMULATIONS")
