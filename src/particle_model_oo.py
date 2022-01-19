@@ -103,7 +103,11 @@ class WienerProcess:
         title = "Wiener Process"
         plt.figure(title)
         plt.clf()
-        plt.title(title)
+        plt.suptitle(title, fontsize=16, weight='bold')
+        plt.title(rf"{self._n_particles} particles $-$ $\Delta t$"
+                  rf" = {self._dt}", fontsize=11)
+        plt.ylabel(rf"Wiener process $W_n$")
+        plt.xlabel(rf"Step $n$")
         plt.plot(self._process)
 
 
