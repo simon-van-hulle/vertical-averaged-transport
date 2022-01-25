@@ -10,12 +10,15 @@ from dataclasses import dataclass, field
 from typing import Callable, List
 
 import numpy as np
+
 import scipy.optimize as spopt
 
-import helpers as h
-from particle_model_oo import *
+import particle_model.helpers as h
+from particle_model.particle_model_oo import *
 
 logger = h.easy_logger(__name__, logging.INFO)
+
+
 
 CURRENT_FILE = os.path.abspath(__file__)
 CURRENT_DIR = os.path.dirname(CURRENT_FILE)
@@ -91,7 +94,7 @@ def convg_f_name(simul):
 
 
 def write_header(filename, convg_list, simul):
-    with open(filename, "a") as convg_f:
+    with open(filename, "w") as convg_f:
         convg_f.write(f"# Convergence Analysis with parameters:\n"
                       f"#   scheme              : {simul._scheme:s}\n"
                       f"#   Final time T        : {simul._end_time:f}\n"
@@ -161,7 +164,6 @@ def summarise(name, value):
 
 
 def convergence_tests(config, refinements='5', refine_method='exp'):
-    np.seterr(all='raise')
 
     logger.info(f"Starting convergence analysis with\n"
                 f"  {refinements} dt refinements.\n"
@@ -184,10 +186,11 @@ def convergence_tests(config, refinements='5', refine_method='exp'):
         dt = simul.dt()
 
         try:
-            xy_final = simul.run()
+            xy_final = simul.run(convergenc_tests=True)
+            if type(xy_final) == type(0) or type(xy_final) == type(None):
+                raise TypeError
         except:
-            logger.warning("dt IS TOO LARGE. DOES NOT CONVERGE")
-            logger.warning("PREVENTING FURTHER SIMULATIONS")
+            logger.warning("At least some particles left the domain.")
             break
 
         if i == 0:
@@ -209,7 +212,13 @@ def convergence_tests(config, refinements='5', refine_method='exp'):
 
 
 if __name__ == "__main__":
+    np.seterr(all='raise')
+
     config = parse_configuration()
+    config.store_plot = False
+    config.make_animation = False
+    config.show_end = False
+
     convergence_tests(config, REFINEMENTS, REFINE_METHOD)
 
     if config.show_end:

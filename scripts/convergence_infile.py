@@ -8,7 +8,7 @@ import sys
 import matplotlib.pyplot as plt
 import numpy as np
 
-import helpers as h
+import particle_model.helpers as h
 
 logger = h.easy_logger(__name__, logging.INFO)
 

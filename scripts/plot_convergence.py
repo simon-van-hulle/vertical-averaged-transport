@@ -1,4 +1,4 @@
-#!/bin/python3
+#!/usr/bin/env python3
 
 __author__ = "Simon Van Hulle"
 
@@ -17,7 +17,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 import convergence as c
-import helpers as h
+import particle_model.helpers as h
 
 logger = h.easy_logger(__name__, logging.INFO)
 
@@ -29,13 +29,14 @@ def readErrors(fileName):
     if os.path.exists(fileName):
         data = np.genfromtxt(fileName, comments='#').T
 
-        times = data[0]
+        dts = data[0]
         coeffs = data[1:]
+        convg_list = [c.Convg(errors=data[i]) for i in range(1, len(data))]
 
         with open(fileName, 'r') as f:
             for line in f.readlines():
                 if line.startswith('# dt'):
-                    coeffNames = list(line.strip('#').split())[1:]
+                    convgNames = list(line.strip('#').split())[1:]
                     break
 
     else:
@@ -43,61 +44,68 @@ def readErrors(fileName):
         logger.info(f"\t[ERROR]: Check the error directory!\n")
         return None, None, None
 
-    return times, coeffs, coeffNames
+    for i, name in enumerate(convgNames):
+        convg_list[i].name = name
+
+    return dts, convg_list
 
 
-def readOrder_j_k(filename):
-    jLine = None
-    kLine = None
+# def readOrder_j_k(filename):
+#     jLine = None
+#     kLine = None
 
-    with open(filename) as f:
-        for line in f.readlines():
-            if line.startswith("# Order"):
-                jLine = line
-            elif line.startswith("# Factor"):
-                kLine = line
+#     with open(filename) as f:
+#         for line in f.readlines():
+#             if line.startswith("# Order"):
+#                 jLine = line
+#             elif line.startswith("# Factor"):
+#                 kLine = line
 
-    jVals = re.sub("[#\n\+-]", "", jLine).split()[2::2]
-    kVals = re.sub("[#\n\+-]", "", kLine).split()[2::2]
+#     jVals = re.sub("[#\n\+-]", "", jLine).split()[2::2]
+#     kVals = re.sub("[#\n\+-]", "", kLine).split()[2::2]
 
-    return map(float, jVals), map(float, kVals)
+#     return map(float, jVals), map(float, kVals)
 
-def plotOrder(dts, jVals, kVals, args):
+def plotOrder(dts, convg, args):
     """
     NOTE: This is a very delicate, first implementation. Very likely to break.
     But works for what I need right now.
     """
-    for j, k in zip(jVals, kVals):
-        if args.scale == 'linear':
-            plt.plot(dts, c.error_f(dts, j, k), 'k--')
-        elif args.scale == 'log':
-            plt.loglog(dts, c.error_f(dts, j, k), 'k--')
+    nSteps = 100
+    dtVals = np.linspace(dts.min(), dts.max(), nSteps)
+
+    convg.order_convg(dts)
+    if args.scale == 'linear':
+        plt.plot(dtVals, c.error_f(dtVals, convg.j, convg.k), '--',
+                 label=rf"E = {convg.k:.2f} * $(\Delta t)^{{{convg.j:.2f}}}$")
+    elif args.scale == 'log':
+        plt.loglog(dtVals, c.error_f(dtVals, convg.j, convg.k), '--',
+                   label=rf"E = {convg.k:.2f} * $(\Delta t)^{{{convg.j:.2f}}}$")
 
 
-def plotErrors(time, coeffs, coeffNames, names, args):
+def plotErrors(dts, convg_list, names, args):
     numPlots = 0
-    tmin = args.tmin
-    # Only use tmin correction if this is possible! Otherwise proceed.
-    if tmin and np.max(time) > tmin:
-        xmin = np.where(time > tmin)[0][0]
-    else:
-        xmin = 0
 
-    time = time[xmin:]
+    plt.axvline(0, color='k', linewidth=2)
+    plt.axhline(0, color='k', linewidth=2)
 
-    for name in names:
-        if name in coeffNames:
-            logger.info(f"\tPlotting {name}")
+    for convg in convg_list:
+        if convg.name in names:
+            logger.info(f"\tPlotting {convg.name}")
 
             if (args.scale == 'linear'):
-                plt.plot(time, coeffs[coeffNames.index(name), xmin:], 'o',
-                         markersize=3, label=name)
+                plt.plot(dts, convg.errors, 'o',
+                         markersize=3, label=convg.name)
 
             elif (args.scale == 'log'):
-                plt.loglog(time, coeffs[coeffNames.index(name), xmin:], 'o',
-                           markersize=3, label=name)
+                plt.loglog(dts, convg.errors, 'o',
+                           markersize=3, label=convg.name)
 
+            plotOrder(dts, convg, args)
+            
             numPlots += 1
+
+                
 
     if numPlots > 0:
         ax = plt.gca()
@@ -123,23 +131,18 @@ def plotErrors(time, coeffs, coeffNames, names, args):
 def plotFiles(args):
     files = args.files
     names = args.names
-    tmin = args.tmin
     allCoeffNames = []
     numPlots = 0
 
     for fileName in files:
-        times, coeffs, coeffNames = readErrors(fileName)
-        jVals, kVals = readOrder_j_k(fileName)
-        print(jVals, kVals)
-        dts = np.linspace(np.min(times), np.max(times), 100)
-        plotOrder(dts, jVals, kVals, args)
+        dts, convg_list = readErrors(fileName)
+        # plotOrder(dts, convg_list, args)
 
-        if type(times) == type(None):
+        if type(dts) == type(None):
             break
 
-        allCoeffNames += coeffNames
-        numPlots += plotErrors(times, coeffs, coeffNames, names or coeffNames,
-                               args)
+        allCoeffNames += [convg.name for convg in convg_list]
+        numPlots += plotErrors(dts, convg_list, names or allCoeffNames, args)
 
     if numPlots < len(names or [None]):
         logger.warning(f"Not all of your specified errors were found.")
@@ -194,4 +197,5 @@ def plotTerminalInput():
 
 
 if __name__ == '__main__':
+
     plotTerminalInput()
