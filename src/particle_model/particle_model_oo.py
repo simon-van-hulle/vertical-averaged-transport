@@ -18,13 +18,14 @@ import logging
 import enlighten
 import configargparse
 
-import helpers as h
+from . import helpers as h
+
 
 logger = h.easy_logger(__name__, logging.INFO)
 
 CURRENT_FILE = os.path.abspath(__file__)
 CURRENT_DIR = os.path.dirname(CURRENT_FILE)
-PROJECT_DIR = os.path.dirname(CURRENT_DIR)
+PROJECT_DIR = os.path.dirname(os.path.dirname(CURRENT_DIR))
 OUTPUT_DIR = os.path.join(PROJECT_DIR, "results")
 
 
@@ -72,6 +73,11 @@ class Domain:
         self._xmax = xmax
         self._ymin = ymin
         self._ymax = ymax
+
+    def in_domain(self, x, y):
+        in_x_domain = (x > self._xmin) * (x < self._xmax)
+        in_y_domain = (y > self._ymin) * (y < self._ymax)
+        return in_x_domain * in_y_domain
 
 
 class WienerProcess:
@@ -126,6 +132,15 @@ class Particles:
         self._dispersion = None
         self._dispersion_der = None
         self._depth_avgd_disp = None
+
+    def in_domain(self):
+        return self._domain.in_domain(self._pos_x, self._pos_y)
+
+    def all_in_domain(self):
+        return self.in_domain().all()
+
+    def out_domain_count(self):
+        return np.logical_not(self.in_domain()).sum()
 
     def calc_dispersion(self):
         self._dispersion = dispersion_coeffs(self._pos_x, self._pos_y)
@@ -282,7 +297,8 @@ class ParticleSimulation():
 
         return 0
 
-    def run(self):
+    def run(self, convergenc_tests=False):
+
         self.reset()
         c = self.config
 
@@ -294,11 +310,20 @@ class ParticleSimulation():
                                              min_delta=1,
                                              unit='ticks')
 
-        for self._current_step in range(0, self._total_steps, self._steps_per_it):
-            self.step()
-            run_progress_bar.update()
+        def clean_return(r):
+            run_progress_bar.close()
+            logger.info("Finished particle model run")
+            return r
 
-        logger.info("Finished particle model run")
+        for self._current_step in range(0, self._total_steps, self._steps_per_it):
+            try:
+                self.step()
+            except:
+                logger.error("DIVERGING")
+                run_progress_bar.stop()
+                return clean_return(None)
+
+            run_progress_bar.update()
 
         if c.show_all or c.store_plot:
             self.plot_current(show_plot=c.show_all, store_plot=c.store_plot)
@@ -306,7 +331,10 @@ class ParticleSimulation():
         if c.make_animation:
             self.particleAnimation()
 
-        return np.array([self._particles._pos_x, self._particles._pos_y])
+        if convergenc_tests:
+            return clean_return(np.array([self._particles._pos_x, self._particles._pos_y]))
+        else:
+            return clean_return(self._particles.out_domain_count())
 
     def particleAnimation(self):
         logger.info("Starting Animation")
@@ -364,7 +392,7 @@ def parse_configuration():
           help='number of particles in the simulation')
     p.add('-st', '--total-steps', type=int, default=1000, metavar='',
           help='number of numerical steps in the simulation')
-    p.add('-t', '--end-time', type=int, default=1000, metavar='',
+    p.add('-t', '--end-time', type=float, default=1000, metavar='',
           help='time (seconds) to stop the simulation')
     p.add('-sc', '--scheme', type=str, default="euler", metavar='',
           help='numerical scheme for the simulation')
@@ -385,6 +413,8 @@ def parse_configuration():
 
 
 if __name__ == "__main__":
+
+    np.seterr(all='raise')
     config = parse_configuration()
 
     simul = ParticleSimulation(config)
