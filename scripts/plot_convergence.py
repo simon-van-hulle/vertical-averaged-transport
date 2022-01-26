@@ -11,7 +11,6 @@ I will not take the time to fix this, since the output works as expected.
 import argparse
 import logging
 import os
-import re
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -35,6 +34,9 @@ def readErrors(fileName):
 
         with open(fileName, 'r') as f:
             for line in f.readlines():
+                if line.startswith('#   scheme'):
+                    scheme = line.strip('#\n').split(': ')[-1].capitalize()
+                    print(scheme.capitalize())
                 if line.startswith('# dt'):
                     convgNames = list(line.strip('#').split())[1:]
                     break
@@ -46,31 +48,12 @@ def readErrors(fileName):
 
     for i, name in enumerate(convgNames):
         convg_list[i].name = name
+        convg_list[i].scheme = scheme
 
     return dts, convg_list
 
 
-# def readOrder_j_k(filename):
-#     jLine = None
-#     kLine = None
-
-#     with open(filename) as f:
-#         for line in f.readlines():
-#             if line.startswith("# Order"):
-#                 jLine = line
-#             elif line.startswith("# Factor"):
-#                 kLine = line
-
-#     jVals = re.sub("[#\n\+-]", "", jLine).split()[2::2]
-#     kVals = re.sub("[#\n\+-]", "", kLine).split()[2::2]
-
-#     return map(float, jVals), map(float, kVals)
-
 def plotOrder(dts, convg, args):
-    """
-    NOTE: This is a very delicate, first implementation. Very likely to break.
-    But works for what I need right now.
-    """
     nSteps = 100
     dtVals = np.linspace(dts.min(), dts.max(), nSteps)
 
@@ -94,18 +77,16 @@ def plotErrors(dts, convg_list, names, args):
             logger.info(f"\tPlotting {convg.name}")
 
             if (args.scale == 'linear'):
-                plt.plot(dts, convg.errors, 'o',
-                         markersize=3, label=convg.name)
+                plt.plot(dts, convg.errors, 'o', markersize=3, 
+                label=f"{convg.scheme.capitalize()} {convg.name}")
 
             elif (args.scale == 'log'):
-                plt.loglog(dts, convg.errors, 'o',
-                           markersize=3, label=convg.name)
+                plt.loglog(dts, convg.errors, 'o', markersize=3,
+                label=f"{convg.scheme.capitalize()} {convg.name}")
 
             plotOrder(dts, convg, args)
-            
-            numPlots += 1
 
-                
+            numPlots += 1
 
     if numPlots > 0:
         ax = plt.gca()
@@ -113,8 +94,8 @@ def plotErrors(dts, convg_list, names, args):
         ylabel = "Error"
 
         if args.scale == 'log':
-            xlabel = rf"$\log(\Delta t)$"
-            ylabel = rf"$\log(Error)$"
+            xlabel = rf"$\Delta t - $ log scale"
+            ylabel = rf"$Error - $ log scale"
 
         ax.set_xlabel(xlabel)
         ax.set_ylabel(ylabel)

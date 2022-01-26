@@ -71,6 +71,7 @@ class Convg:
     k_stdev: float = None
     j_str: str = None
     k_str: str = None
+    scheme: str = None
 
     def convg_f(self, *args, **kwargs):
         if self.convg_type == 'weak':

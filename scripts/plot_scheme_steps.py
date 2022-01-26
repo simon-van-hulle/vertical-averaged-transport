@@ -6,8 +6,8 @@ from particle_model.particle_model_oo import *
 
 def main():
 
-    Nx = 5
-    Ny = 5
+    Nx = 20
+    Ny = 20
     N = Nx * Ny
 
     dt = 0.005
@@ -30,9 +30,11 @@ def main():
         dxDiff = dxM - dxE
         dyDiff = dyM - dyE
         plt.figure()
-        plt.quiver(x, y, dxE, dyE, color='g')
-        plt.quiver(x, y, dxM, dyM, color='r')
-        plt.quiver(x, y, dxDiff, dyDiff, color='k')
+        # plt.quiver(x, y, dxE, dyE, color='g', label="Euler")
+        plt.quiver(x, y, dxM, dyM, color='r', label="Milstein")
+        # plt.quiver(x, y, dxDiff, dyDiff, color='k', label="Difference")
+
+        plt.legend()
         plt.show()
 
 if __name__ == '__main__':
