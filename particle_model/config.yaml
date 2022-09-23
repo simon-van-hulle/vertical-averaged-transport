@@ -9,11 +9,8 @@ total-steps: 24576
 # total-steps: 8192
 # total-steps: 1000
 
-<<<<<<<< HEAD:src/particle_model/config.yaml
-end-time: 2
-========
+
 end-time: 3
->>>>>>>> 9ad98bc (untracked files):particle_model/config.yaml
 scheme: euler
 # scheme: milstein
 
